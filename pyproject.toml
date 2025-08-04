@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hypervector-lab"
+version = "0.1.0"
+description = "Production-ready tooling for Hyperdimensional Computing (HDC) in PyTorch 2.5"
+authors = [
+    {name = "HyperVector Lab", email = "contact@hyperdimensional.co"}
+]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.9"
+keywords = ["hyperdimensional-computing", "pytorch", "machine-learning", "neuromorphic"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.0.0",
+    "numpy>=1.21.0",
+    "einops>=0.6.0",
+    "transformers>=4.20.0",
+    "Pillow>=9.0.0",
+    "scipy>=1.8.0",
+    "scikit-learn>=1.1.0",
+    "matplotlib>=3.5.0",
+    "tqdm>=4.64.0",
+]
+
+[project.optional-dependencies]
+cuda = [
+    "cupy-cuda12x>=12.0.0",
+    "nvidia-ml-py>=12.0.0",
+]
+neuromorphic = [
+    "nxsdk>=1.0.0",
+    "brian2>=2.5.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "isort>=5.10.0",
+    "flake8>=5.0.0",
+    "mypy>=0.991",
+    "pre-commit>=2.20.0",
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/danieleschmidt/hypervector-lab"
+Documentation = "https://hyperdimensional.co"
+Repository = "https://github.com/danieleschmidt/hypervector-lab"
+Issues = "https://github.com/danieleschmidt/hypervector-lab/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hypervector*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-v --tb=short"
