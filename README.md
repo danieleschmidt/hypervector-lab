@@ -171,9 +171,9 @@ If you use HyperVector-Lab in your research, please cite:
 ```bibtex
 @software{hypervector2025,
   title={HyperVector-Lab: Production-Ready Hyperdimensional Computing},
-  author={Your Name},
+  author={Daniel Schmidt},
   year={2025},
-  url={https://github.com/yourusername/HyperVector-Lab}
+  url={https://github.com/danieleschmidt/HyperVector-Lab}
 }
 
 @article{kanerva2009hyperdimensional,
