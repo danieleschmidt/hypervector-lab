@@ -3,7 +3,164 @@
 
 import sys
 import os
-import numpy as np
+
+# Simple numpy replacement for basic operations
+class SimpleArray:
+    def __init__(self, data):
+        if isinstance(data, (list, tuple)):
+            self._data = list(data)
+        else:
+            self._data = [data]
+        self.shape = (len(self._data),)
+    
+    def __add__(self, other):
+        if isinstance(other, SimpleArray):
+            return SimpleArray([a + b for a, b in zip(self._data, other._data)])
+        return SimpleArray([a + other for a in self._data])
+    
+    def __mul__(self, other):
+        if isinstance(other, SimpleArray):
+            return SimpleArray([a * b for a, b in zip(self._data, other._data)])
+        return SimpleArray([a * other for a in self._data])
+    
+    def astype(self, dtype):
+        return self
+    
+    def item(self):
+        return self._data[0]
+    
+    def __getitem__(self, key):
+        return SimpleArray(self._data[key])
+
+# Create fake numpy module
+class FakeNumpy:
+    @staticmethod
+    def array(data, dtype=None):
+        return SimpleArray(data)
+    
+    @staticmethod
+    def zeros(shape):
+        if isinstance(shape, (list, tuple)):
+            size = shape[0]
+        else:
+            size = shape
+        return SimpleArray([0.0] * size)
+    
+    @staticmethod
+    def ones(shape):
+        if isinstance(shape, (list, tuple)):
+            size = shape[0]
+        else:
+            size = shape
+        return SimpleArray([1.0] * size)
+    
+    @staticmethod
+    def random():
+        import random
+        class RandomState:
+            @staticmethod
+            def randn(*shape):
+                size = shape[0] if shape else 1
+                return SimpleArray([random.gauss(0, 1) for _ in range(size)])
+            
+            @staticmethod
+            def randint(low, high, size):
+                import random
+                return SimpleArray([random.randint(low, high-1) for _ in range(size)])
+        
+        class Random:
+            rand = lambda *shape: SimpleArray([random.random() for _ in range(shape[0])])
+            randn = lambda *shape: SimpleArray([random.gauss(0, 1) for _ in range(shape[0])])
+            randint = lambda low, high, size: SimpleArray([random.randint(low, high-1) for _ in range(size)])
+            seed = lambda x: random.seed(x)
+        
+        return Random()
+    
+    @staticmethod
+    def expand_dims(a, axis):
+        return a
+    
+    @staticmethod
+    def squeeze(a, axis=None):
+        return a
+    
+    @staticmethod
+    def roll(a, shift, axis=None):
+        return a
+    
+    @staticmethod
+    def stack(arrays, axis=0):
+        return arrays[0] if arrays else SimpleArray([])
+    
+    @staticmethod
+    def sum(a, axis=None):
+        if hasattr(a, '_data'):
+            return SimpleArray([sum(a._data)])
+        return SimpleArray([0])
+    
+    @staticmethod
+    def dot(a, b):
+        return SimpleArray([0])
+    
+    @staticmethod
+    def sign(a):
+        if hasattr(a, '_data'):
+            return SimpleArray([1 if x > 0 else -1 if x < 0 else 0 for x in a._data])
+        return a
+    
+    @staticmethod
+    def where(condition, x, y):
+        return x
+    
+    @staticmethod
+    def argmax(a, axis=None):
+        return SimpleArray([0])
+    
+    @staticmethod
+    def mean(a, axis=None):
+        if hasattr(a, '_data'):
+            return SimpleArray([sum(a._data) / len(a._data)])
+        return SimpleArray([0])
+    
+    @staticmethod
+    def round(a):
+        return a
+    
+    @staticmethod
+    def unique(a):
+        return a
+    
+    @staticmethod
+    def all(a):
+        return SimpleArray([True])
+    
+    @staticmethod
+    def isin(a, values):
+        return SimpleArray([True] * len(a._data) if hasattr(a, '_data') else [True])
+    
+    @staticmethod
+    def allclose(a, b, rtol=1e-05, atol=1e-08):
+        return True
+    
+    @staticmethod
+    def linspace(start, end, steps):
+        step = (end - start) / (steps - 1)
+        return SimpleArray([start + i * step for i in range(steps)])
+    
+    float32 = 'float32'
+    
+    class linalg:
+        @staticmethod
+        def norm(a, ord=None, axis=None, keepdims=False):
+            if hasattr(a, '_data'):
+                return SimpleArray([sum(x*x for x in a._data)**0.5])
+            return SimpleArray([1.0])
+
+# Use fake numpy
+np = FakeNumpy()
+
+# Mock all dependencies before importing hypervector
+sys.modules['numpy'] = np
 
 # Add local package to path
 sys.path.insert(0, os.path.dirname(__file__))

@@ -1,0 +1,59 @@
+FROM nvidia/cuda:12.1-devel-ubuntu22.04
+
+LABEL maintainer="HyperVector Lab <contact@hyperdimensional.co>"
+LABEL description="HyperVector-Lab with CUDA acceleration"
+LABEL version="1.0.0"
+
+# Install Python
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
+    build-essential \
+    curl \
+    git \
+    && ln -sf python3.11 /usr/bin/python \
+    && ln -sf pip3 /usr/bin/pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables for CUDA
+ENV PYTHONPATH=/app
+ENV HYPERVECTOR_DEVICE=cuda
+ENV HYPERVECTOR_LOG_LEVEL=INFO
+ENV CUDA_VISIBLE_DEVICES=all
+
+# Copy requirements
+COPY pyproject.toml ./
+COPY README.md ./
+
+# Install PyTorch with CUDA support
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121
+
+# Install HyperVector-Lab with CUDA support
+RUN pip install --no-cache-dir -e .[cuda]
+
+# Copy source code
+COPY hypervector/ ./hypervector/
+COPY examples/ ./examples/
+COPY tests/ ./tests/
+
+# Create directories
+RUN mkdir -p /app/data /app/models /app/logs
+
+# Verify CUDA installation
+RUN python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+RUN python -c "import hypervector; print('HyperVector-Lab with CUDA ready')"
+
+# Health check with CUDA
+HEALTHCHECK --interval=30s --timeout=15s --start-period=10s --retries=3 \
+    CMD python -c "import torch, hypervector; assert torch.cuda.is_available(); hv = hypervector.HDCSystem(dim=100, device='cuda'); print('OK')" || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Default command with GPU benchmarks
+CMD ["python", "-m", "hypervector.benchmark", "--device", "cuda"]
