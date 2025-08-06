@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # HyperVector-Lab CPU Service
+  hypervector-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    container_name: hypervector-cpu
+    environment:
+      - HYPERVECTOR_DEVICE=cpu
+      - HYPERVECTOR_LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data:ro
+      - ./models:/app/models:rw
+      - ./logs:/app/logs:rw
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - hypervector-net
+
+  # HyperVector-Lab GPU Service
+  hypervector-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    container_name: hypervector-gpu
+    runtime: nvidia
+    environment:
+      - HYPERVECTOR_DEVICE=cuda
+      - HYPERVECTOR_LOG_LEVEL=INFO
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./data:/app/data:ro
+      - ./models:/app/models:rw
+      - ./logs:/app/logs:rw
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+    networks:
+      - hypervector-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: hypervector-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - hypervector-net
+
+  # Monitoring with Prometheus (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hypervector-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    restart: unless-stopped
+    networks:
+      - hypervector-net
+
+  # Grafana for visualization (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hypervector-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    networks:
+      - hypervector-net
+
+networks:
+  hypervector-net:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
+  grafana_data:
+    driver: local
