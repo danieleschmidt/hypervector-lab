@@ -2,7 +2,16 @@
 
 import torch
 from typing import Optional, Union, List, Dict, Any
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
 from PIL import Image
 
 from .hypervector import HyperVector
@@ -49,13 +58,13 @@ class HDCSystem:
         """Encode text into hypervector."""
         return self.text_encoder.encode(text, method=method)
     
-    def encode_image(self, image: Union[torch.Tensor, np.ndarray, Image.Image]) -> HyperVector:
+    def encode_image(self, image: Union[torch.Tensor, "np.ndarray", Image.Image]) -> HyperVector:
         """Encode image into hypervector."""
         return self.vision_encoder.encode(image)
     
     def encode_eeg(
         self, 
-        signal: Union[torch.Tensor, np.ndarray], 
+        signal: Union[torch.Tensor, "np.ndarray"], 
         sampling_rate: float = 250.0
     ) -> HyperVector:
         """Encode EEG signal into hypervector."""

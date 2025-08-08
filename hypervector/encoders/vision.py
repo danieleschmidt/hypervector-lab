@@ -5,7 +5,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
 from PIL import Image
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
 from typing import Union, Optional, Tuple
 
 from ..core.hypervector import HyperVector
@@ -73,7 +82,7 @@ class VisionEncoder:
                 seed=(hash("patch_pos") + i) % 2**31
             )
     
-    def _preprocess_image(self, image: Union[torch.Tensor, np.ndarray, Image.Image]) -> torch.Tensor:
+    def _preprocess_image(self, image: Union[torch.Tensor, "np.ndarray", Image.Image]) -> torch.Tensor:
         """Preprocess image for encoding."""
         if isinstance(image, np.ndarray):
             if image.ndim == 3 and image.shape[2] == 3:
@@ -99,7 +108,7 @@ class VisionEncoder:
             
         return image.to(self.device)
     
-    def encode_holistic(self, image: Union[torch.Tensor, np.ndarray, Image.Image]) -> HyperVector:
+    def encode_holistic(self, image: Union[torch.Tensor, "np.ndarray", Image.Image]) -> HyperVector:
         """Encode entire image as single hypervector."""
         processed_image = self._preprocess_image(image)
         
@@ -111,7 +120,7 @@ class VisionEncoder:
         
         return HyperVector(features.squeeze(0), device=self.device)
     
-    def encode_patches(self, image: Union[torch.Tensor, np.ndarray, Image.Image]) -> HyperVector:
+    def encode_patches(self, image: Union[torch.Tensor, "np.ndarray", Image.Image]) -> HyperVector:
         """Encode image using patch-based approach."""
         processed_image = self._preprocess_image(image)
         
@@ -158,7 +167,7 @@ class VisionEncoder:
     
     def encode(
         self, 
-        image: Union[torch.Tensor, np.ndarray, Image.Image],
+        image: Union[torch.Tensor, "np.ndarray", Image.Image],
         method: str = "holistic"
     ) -> HyperVector:
         """Encode image using specified method.
@@ -176,8 +185,8 @@ class VisionEncoder:
     
     def similarity(
         self, 
-        image1: Union[torch.Tensor, np.ndarray, Image.Image],
-        image2: Union[torch.Tensor, np.ndarray, Image.Image],
+        image1: Union[torch.Tensor, "np.ndarray", Image.Image],
+        image2: Union[torch.Tensor, "np.ndarray", Image.Image],
         method: str = "holistic"
     ) -> float:
         """Compute similarity between two images."""

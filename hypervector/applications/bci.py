@@ -1,7 +1,16 @@
 """Brain-Computer Interface classifier using hyperdimensional computing."""
 
 import torch
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
 from typing import Dict, List, Optional, Union, Tuple
 from collections import defaultdict, deque
 
@@ -65,7 +74,7 @@ class BCIClassifier:
     
     def add_training_sample(
         self, 
-        eeg_data: Union[torch.Tensor, np.ndarray], 
+        eeg_data: Union[torch.Tensor, "np.ndarray"], 
         label: str
     ) -> None:
         """Add labeled training sample to build class prototypes.
@@ -93,7 +102,7 @@ class BCIClassifier:
     
     def train_batch(
         self, 
-        eeg_samples: List[Union[torch.Tensor, np.ndarray]], 
+        eeg_samples: List[Union[torch.Tensor, "np.ndarray"]], 
         labels: List[str]
     ) -> None:
         """Train on batch of labeled samples."""
@@ -105,7 +114,7 @@ class BCIClassifier:
     
     def classify(
         self, 
-        eeg_data: Union[torch.Tensor, np.ndarray],
+        eeg_data: Union[torch.Tensor, "np.ndarray"],
         return_confidence: bool = True
     ) -> Union[str, Tuple[str, float]]:
         """Classify single EEG sample.
@@ -162,7 +171,7 @@ class BCIClassifier:
     
     def update_online(
         self, 
-        eeg_data: Union[torch.Tensor, np.ndarray], 
+        eeg_data: Union[torch.Tensor, "np.ndarray"], 
         true_label: str,
         predicted_label: str
     ) -> None:

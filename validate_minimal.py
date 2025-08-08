@@ -309,7 +309,15 @@ class MockTorch:
     
     @staticmethod
     def manual_seed(seed):
-        np.random.seed(seed)
+        import random
+        random.seed(seed)
+        # Also try to seed numpy if it's real
+        try:
+            import numpy as real_np
+            if hasattr(real_np, 'random') and hasattr(real_np.random, 'seed'):
+                real_np.random.seed(seed)
+        except ImportError:
+            pass
     
     class cuda:
         @staticmethod

@@ -1,7 +1,17 @@
 """Input validation utilities for robust operation."""
 
 import torch
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
+
 from typing import Union, List, Any, Optional
 from PIL import Image
 
@@ -39,7 +49,7 @@ def validate_input(
 
 
 def validate_dimensions(
-    data: Union[torch.Tensor, np.ndarray],
+    data: Union[torch.Tensor, "np.ndarray"],
     expected_dims: Union[int, List[int]],
     name: str = "data"
 ) -> None:
@@ -103,7 +113,7 @@ def validate_positive(value: Union[int, float], name: str = "value") -> None:
 
 
 def validate_non_empty(
-    data: Union[List, str, torch.Tensor, np.ndarray],
+    data: Union[List, str, torch.Tensor, "np.ndarray"],
     name: str = "data"
 ) -> None:
     """Validate data is not empty.
@@ -120,7 +130,7 @@ def validate_non_empty(
 
 
 def validate_eeg_signal(
-    signal: Union[torch.Tensor, np.ndarray],
+    signal: Union[torch.Tensor, "np.ndarray"],
     sampling_rate: float,
     name: str = "EEG signal"
 ) -> None:
@@ -156,7 +166,7 @@ def validate_eeg_signal(
 
 
 def validate_image(
-    image: Union[torch.Tensor, np.ndarray, Image.Image],
+    image: Union[torch.Tensor, "np.ndarray", Image.Image],
     name: str = "image"
 ) -> None:
     """Validate image data.

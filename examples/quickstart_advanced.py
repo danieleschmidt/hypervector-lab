@@ -4,7 +4,16 @@ Advanced HyperVector-Lab Examples
 Demonstrates production-ready features and optimizations.
 """
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
 import torch
 from pathlib import Path
 
