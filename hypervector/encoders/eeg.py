@@ -3,8 +3,17 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from typing import Union, Optional, List, Tuple
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
+from typing import Union, Optional, List, Tuple, Dict
 from scipy import signal
 
 from ..core.hypervector import HyperVector
@@ -78,7 +87,7 @@ class EEGEncoder:
     
     def _preprocess_signal(
         self, 
-        signal_data: Union[torch.Tensor, np.ndarray],
+        signal_data: Union[torch.Tensor, "np.ndarray"],
         sampling_rate: float
     ) -> torch.Tensor:
         """Preprocess EEG signal."""
@@ -127,7 +136,7 @@ class EEGEncoder:
     
     def encode_temporal(
         self, 
-        signal_data: Union[torch.Tensor, np.ndarray],
+        signal_data: Union[torch.Tensor, "np.ndarray"],
         sampling_rate: float = 250.0
     ) -> HyperVector:
         """Encode EEG signal using temporal features."""
@@ -150,7 +159,8 @@ class EEGEncoder:
                 amplitude = processed_signal[ch, t].item()
                 
                 # Simple amplitude encoding: quantize to discrete levels
-                quantized_amp = torch.round(amplitude * 10) / 10
+                quantized_amp = torch.round(torch.tensor(amplitude) * 10) / 10
+                quantized_amp = quantized_amp.item()
                 amp_hv = HyperVector.random(
                     dim=self.dim,
                     device=self.device,
@@ -179,7 +189,7 @@ class EEGEncoder:
     
     def encode_spectral(
         self, 
-        signal_data: Union[torch.Tensor, np.ndarray],
+        signal_data: Union[torch.Tensor, "np.ndarray"],
         sampling_rate: float = 250.0
     ) -> HyperVector:
         """Encode EEG signal using spectral features."""
@@ -229,7 +239,7 @@ class EEGEncoder:
     
     def encode(
         self, 
-        signal_data: Union[torch.Tensor, np.ndarray],
+        signal_data: Union[torch.Tensor, "np.ndarray"],
         sampling_rate: float = 250.0,
         method: str = "combined"
     ) -> HyperVector:
@@ -253,8 +263,8 @@ class EEGEncoder:
     
     def similarity(
         self,
-        signal1: Union[torch.Tensor, np.ndarray],
-        signal2: Union[torch.Tensor, np.ndarray],
+        signal1: Union[torch.Tensor, "np.ndarray"],
+        signal2: Union[torch.Tensor, "np.ndarray"],
         sampling_rate: float = 250.0,
         method: str = "combined"
     ) -> float:

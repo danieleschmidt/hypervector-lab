@@ -1,7 +1,16 @@
 """Batch processing utilities for efficient HDC operations."""
 
 import torch
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
 from typing import List, Iterator, Callable, Optional, Dict, Any, Union
 from dataclasses import dataclass
 import queue
@@ -73,7 +82,7 @@ class BatchProcessor:
     def batch_encode(
         self, 
         encoder,
-        inputs: List[Union[str, torch.Tensor, np.ndarray]],
+        inputs: List[Union[str, torch.Tensor, "np.ndarray"]],
         batch_size: Optional[int] = None
     ) -> List[HyperVector]:
         """Encode inputs in batches.

@@ -1,7 +1,16 @@
 """Cross-modal retrieval system using hyperdimensional computing."""
 
 import torch
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
 from typing import Dict, List, Optional, Union, Tuple, Any
 from PIL import Image
 import pickle
@@ -51,8 +60,8 @@ class CrossModalRetrieval:
         self,
         item_id: str,
         text: Optional[str] = None,
-        image: Optional[Union[torch.Tensor, np.ndarray, Image.Image]] = None,
-        eeg: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        image: Optional[Union[torch.Tensor, "np.ndarray", Image.Image]] = None,
+        eeg: Optional[Union[torch.Tensor, "np.ndarray"]] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> None:
         """Add multimodal item to the index.
@@ -104,9 +113,9 @@ class CrossModalRetrieval:
     
     def index_dataset(
         self,
-        images: Optional[List[Union[torch.Tensor, np.ndarray, Image.Image]]] = None,
+        images: Optional[List[Union[torch.Tensor, "np.ndarray", Image.Image]]] = None,
         texts: Optional[List[str]] = None,
-        eeg_samples: Optional[List[Union[torch.Tensor, np.ndarray]]] = None,
+        eeg_samples: Optional[List[Union[torch.Tensor, "np.ndarray"]]] = None,
         item_ids: Optional[List[str]] = None
     ) -> None:
         """Index a dataset with multiple items.
@@ -163,7 +172,7 @@ class CrossModalRetrieval:
     
     def query_by_image(
         self,
-        query_image: Union[torch.Tensor, np.ndarray, Image.Image],
+        query_image: Union[torch.Tensor, "np.ndarray", Image.Image],
         modality: str = "all",
         top_k: int = 10
     ) -> List[Tuple[str, float, Dict[str, Any]]]:
@@ -173,7 +182,7 @@ class CrossModalRetrieval:
     
     def query_by_eeg(
         self,
-        query_eeg: Union[torch.Tensor, np.ndarray],
+        query_eeg: Union[torch.Tensor, "np.ndarray"],
         sampling_rate: float = 250.0,
         modality: str = "all",
         top_k: int = 10
@@ -225,7 +234,7 @@ class CrossModalRetrieval:
     def compute_cross_modal_similarity(
         self,
         text: str,
-        image: Union[torch.Tensor, np.ndarray, Image.Image]
+        image: Union[torch.Tensor, "np.ndarray", Image.Image]
     ) -> float:
         """Compute similarity between text and image."""
         text_hv = self.text_encoder.encode(text)

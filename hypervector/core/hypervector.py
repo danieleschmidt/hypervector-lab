@@ -2,7 +2,16 @@
 
 import torch
 from typing import Union, List, Optional
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
 from .exceptions import DimensionMismatchError, InvalidModeError, DeviceError
 from ..utils.validation import validate_input, validate_dimensions, validate_positive
 from ..utils.logging import get_logger, log_errors
@@ -20,7 +29,7 @@ class HyperVector:
     @log_errors(logger)
     def __init__(
         self, 
-        data: Union[torch.Tensor, np.ndarray, List[float]], 
+        data: Union[torch.Tensor, "np.ndarray", List[float]], 
         device: Optional[str] = None,
         dtype: torch.dtype = torch.float32,
         mode: str = "dense"
@@ -45,7 +54,11 @@ class HyperVector:
         
         # Validate and convert data
         try:
-            if isinstance(data, (list, np.ndarray)):
+            # Handle list input
+            if isinstance(data, list):
+                data = torch.tensor(data, dtype=dtype)
+            # Handle numpy array (check if we have real numpy)
+            elif hasattr(np, 'ndarray') and hasattr(np.ndarray, '__module__') and isinstance(data, np.ndarray):
                 data = torch.tensor(data, dtype=dtype)
             elif isinstance(data, torch.Tensor):
                 data = data.to(dtype=dtype)

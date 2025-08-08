@@ -2,7 +2,16 @@
 
 import pytest
 import torch
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
 from hypervector.core import HyperVector, bind, bundle, permute, cosine_similarity, HDCSystem
 
 

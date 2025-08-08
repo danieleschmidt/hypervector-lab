@@ -1,7 +1,16 @@
 """CPU-optimized implementations for HDC operations."""
 
 import torch
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for environments with fake numpy
+    class FakeNumpy:
+        def __getattr__(self, name):
+            if name == 'ndarray':
+                return torch.Tensor
+            raise AttributeError(f"module 'numpy' has no attribute '{name}'")
+    np = FakeNumpy()
 from typing import List, Union, Optional
 import multiprocessing as mp
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
@@ -100,7 +109,7 @@ class CPUAccelerator:
     def parallel_encode(
         self, 
         encoder,
-        inputs: List[Union[str, torch.Tensor, np.ndarray]],
+        inputs: List[Union[str, torch.Tensor, "np.ndarray"]],
         max_workers: Optional[int] = None
     ) -> List[HyperVector]:
         """Encode multiple inputs in parallel.
