@@ -1,7 +1,17 @@
 """Deployment utilities for production HDC systems."""
 
-from .model_server import HDCModelServer
-from .health_monitor import HealthMonitor
 from .deployment_config import DeploymentConfig
+from .docker_config import (
+    DockerConfig,
+    DockerfileGenerator,
+    KubernetesGenerator,
+    create_production_deployment
+)
 
-__all__ = ["HDCModelServer", "HealthMonitor", "DeploymentConfig"]
+__all__ = [
+    "DeploymentConfig",
+    "DockerConfig",
+    "DockerfileGenerator", 
+    "KubernetesGenerator",
+    "create_production_deployment"
+]
