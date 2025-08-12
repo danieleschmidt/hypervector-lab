@@ -26,7 +26,6 @@ class HyperVector:
     Supports both binary {-1, 1} and ternary {-1, 0, 1} representations.
     """
     
-    @log_errors(logger)
     def __init__(
         self, 
         data: Union[torch.Tensor, "np.ndarray", List[float]], 
@@ -52,35 +51,69 @@ class HyperVector:
         if mode not in valid_modes:
             raise InvalidModeError(f"Mode must be one of {valid_modes}, got '{mode}'")
         
-        # Validate and convert data
+        # Validate and convert data with enhanced error handling
         try:
             # Handle list input
             if isinstance(data, list):
+                if not data:
+                    raise ValueError("Data list cannot be empty")
                 data = torch.tensor(data, dtype=dtype)
             # Handle numpy array (check if we have real numpy)
             elif hasattr(np, 'ndarray') and hasattr(np.ndarray, '__module__') and isinstance(data, np.ndarray):
+                if data.size == 0:
+                    raise ValueError("NumPy array cannot be empty")
                 data = torch.tensor(data, dtype=dtype)
             elif isinstance(data, torch.Tensor):
+                if data.numel() == 0:
+                    raise ValueError("Tensor cannot be empty")
                 data = data.to(dtype=dtype)
             else:
                 raise ValueError(f"Unsupported data type: {type(data)}")
+            
+            # Additional validation for data integrity
+            if torch.isnan(data).any():
+                raise ValueError("Data contains NaN values")
+            if torch.isinf(data).any():
+                raise ValueError("Data contains infinite values")
+                
         except Exception as e:
             logger.error(f"Failed to convert data to tensor: {e}")
             raise ValueError(f"Invalid data: {e}")
             
-        # Validate device and move data
+        # Validate device and move data with comprehensive error handling
         if device is not None:
             try:
+                # Validate device availability
+                if device.startswith('cuda') and not torch.cuda.is_available():
+                    raise DeviceError(f"CUDA not available, cannot use device '{device}'")
+                
+                # Check if specific CUDA device exists
+                if device.startswith('cuda:'):
+                    device_id = int(device.split(':')[1])
+                    if device_id >= torch.cuda.device_count():
+                        raise DeviceError(f"CUDA device {device_id} not available (only {torch.cuda.device_count()} devices)")
+                
                 data = data.to(device)
+            except ValueError as e:
+                raise DeviceError(f"Invalid device specification '{device}': {e}")
             except Exception as e:
                 raise DeviceError(f"Failed to move data to device '{device}': {e}")
             
-        # Validate data shape
+        # Enhanced data shape validation
         if data.ndim != 1:
-            raise ValueError(f"Data must be 1-dimensional, got {data.ndim} dimensions")
+            raise ValueError(f"Data must be 1-dimensional, got {data.ndim} dimensions with shape {data.shape}")
         
         if data.shape[0] == 0:
             raise ValueError("Data cannot be empty")
+            
+        # Validate reasonable dimension size
+        if data.shape[0] > 1000000:  # 1M limit
+            logger.warning(f"Very large hypervector dimension: {data.shape[0]}")
+            
+        # Check memory usage
+        memory_mb = data.element_size() * data.numel() / (1024 ** 2)
+        if memory_mb > 1000:  # 1GB limit
+            logger.warning(f"Large memory usage for hypervector: {memory_mb:.1f}MB")
             
         self.data = data
         self.mode = mode
@@ -141,18 +174,39 @@ class HyperVector:
         return HyperVector(ternary_data, mode="ternary")
     
     def __add__(self, other: "HyperVector") -> "HyperVector":
-        """Element-wise addition (bundling)."""
+        """Element-wise addition (bundling) with validation."""
+        if not isinstance(other, HyperVector):
+            raise TypeError(f"Cannot add HyperVector with {type(other)}")
+        
+        if self.dim != other.dim:
+            raise DimensionMismatchError(f"Dimension mismatch: {self.dim} vs {other.dim}")
+            
+        if self.data.device != other.data.device:
+            logger.warning(f"Device mismatch: {self.data.device} vs {other.data.device}. Moving to {self.data.device}")
+            other = other.to(str(self.data.device))
+            
         result_data = self.data + other.data
         return HyperVector(result_data, mode="dense")
     
     def __mul__(self, other: Union["HyperVector", float]) -> "HyperVector":
-        """Element-wise multiplication (binding) or scalar multiplication."""
+        """Element-wise multiplication (binding) or scalar multiplication with validation."""
         if isinstance(other, HyperVector):
+            if self.dim != other.dim:
+                raise DimensionMismatchError(f"Dimension mismatch: {self.dim} vs {other.dim}")
+                
+            if self.data.device != other.data.device:
+                logger.warning(f"Device mismatch: {self.data.device} vs {other.data.device}. Moving to {self.data.device}")
+                other = other.to(str(self.data.device))
+                
             result_data = self.data * other.data
             return HyperVector(result_data, mode=self.mode)
-        else:
+        elif isinstance(other, (int, float)):
+            if other == 0:
+                logger.warning("Multiplying by zero will result in zero hypervector")
             result_data = self.data * other
             return HyperVector(result_data, mode=self.mode)
+        else:
+            raise TypeError(f"Cannot multiply HyperVector with {type(other)}")
     
     def __rmul__(self, other: float) -> "HyperVector":
         """Right scalar multiplication."""
@@ -162,14 +216,43 @@ class HyperVector:
         return f"HyperVector(dim={self.dim}, mode={self.mode}, device={self.data.device})"
     
     def cosine_similarity(self, other: "HyperVector") -> torch.Tensor:
-        """Compute cosine similarity with another hypervector."""
+        """Compute cosine similarity with another hypervector with validation."""
+        if not isinstance(other, HyperVector):
+            raise TypeError(f"Cannot compute similarity with {type(other)}")
+            
+        if self.dim != other.dim:
+            raise DimensionMismatchError(f"Dimension mismatch: {self.dim} vs {other.dim}")
+            
+        if self.data.device != other.data.device:
+            logger.warning(f"Device mismatch: {self.data.device} vs {other.data.device}. Moving to {self.data.device}")
+            other = other.to(str(self.data.device))
+            
+        # Check for zero vectors
+        self_norm = torch.norm(self.data)
+        other_norm = torch.norm(other.data)
+        
+        if self_norm < 1e-10 or other_norm < 1e-10:
+            logger.warning("Computing similarity with near-zero vector")
+            return torch.tensor(0.0, device=self.data.device)
+            
         dot_product = torch.dot(self.data, other.data)
-        norm_product = torch.norm(self.data) * torch.norm(other.data)
+        norm_product = self_norm * other_norm
         return dot_product / (norm_product + 1e-8)
     
     def hamming_distance(self, other: "HyperVector") -> torch.Tensor:
-        """Compute Hamming distance (for binary/ternary vectors)."""
+        """Compute Hamming distance (for binary/ternary vectors) with validation."""
+        if not isinstance(other, HyperVector):
+            raise TypeError(f"Cannot compute Hamming distance with {type(other)}")
+            
+        if self.dim != other.dim:
+            raise DimensionMismatchError(f"Dimension mismatch: {self.dim} vs {other.dim}")
+            
         if self.mode not in ["binary", "ternary"] or other.mode not in ["binary", "ternary"]:
             raise ValueError("Hamming distance only defined for binary/ternary vectors")
-        different = torch.sum(self.data != other.data)
+            
+        if self.data.device != other.data.device:
+            logger.warning(f"Device mismatch: {self.data.device} vs {other.data.device}. Moving to {self.data.device}")
+            other = other.to(str(self.data.device))
+            
+        different = torch.sum(self.data != other.data).float()
         return different / self.dim
