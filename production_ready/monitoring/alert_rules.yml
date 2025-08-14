@@ -1,0 +1,29 @@
+groups:
+  - name: hypervector-lab-alerts
+    rules:
+    - alert: HighCPUUsage
+      expr: cpu_usage > 80
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU usage detected"
+        description: "CPU usage is above 80% for more than 5 minutes"
+        
+    - alert: HighMemoryUsage
+      expr: memory_usage > 85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage detected"
+        description: "Memory usage is above 85% for more than 5 minutes"
+        
+    - alert: ServiceDown
+      expr: up{job="hypervector-lab"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "HyperVector-Lab service is down"
+        description: "HyperVector-Lab service has been down for more than 1 minute"
