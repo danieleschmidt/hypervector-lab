@@ -13,7 +13,15 @@ except ImportError:
     np = FakeNumpy()
 
 from typing import Union, List, Any, Optional
-from PIL import Image
+
+try:
+    from PIL import Image
+except ImportError:
+    # Fallback for environments without PIL
+    class FakeImage:
+        class Image:
+            pass
+    Image = FakeImage()
 
 
 class ValidationError(Exception):
@@ -166,7 +174,7 @@ def validate_eeg_signal(
 
 
 def validate_image(
-    image: Union[torch.Tensor, "np.ndarray", Image.Image],
+    image: Union[torch.Tensor, "np.ndarray", "Image.Image"],
     name: str = "image"
 ) -> None:
     """Validate image data.
@@ -178,9 +186,14 @@ def validate_image(
     Raises:
         ValidationError: If validation fails
     """
-    validate_input(image, (torch.Tensor, np.ndarray, Image.Image), name)
+    # Handle different image types including fallback cases
+    valid_types = (torch.Tensor, np.ndarray)
+    if hasattr(Image, 'Image'):
+        valid_types = valid_types + (Image.Image,)
     
-    if isinstance(image, Image.Image):
+    validate_input(image, valid_types, name)
+    
+    if hasattr(Image, 'Image') and isinstance(image, Image.Image):
         # PIL image is valid
         return
     
