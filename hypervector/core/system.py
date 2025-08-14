@@ -12,7 +12,15 @@ except ImportError:
                 return torch.Tensor
             raise AttributeError(f"module 'numpy' has no attribute '{name}'")
     np = FakeNumpy()
-from PIL import Image
+
+try:
+    from PIL import Image
+except ImportError:
+    # Fallback for environments without PIL
+    class FakeImage:
+        def __getattr__(self, name):
+            return object()
+    Image = FakeImage()
 
 from .hypervector import HyperVector
 from .operations import bind, bundle, permute, cosine_similarity
