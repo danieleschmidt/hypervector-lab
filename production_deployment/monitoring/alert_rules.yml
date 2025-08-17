@@ -1,0 +1,29 @@
+groups:
+- name: hypervector.rules
+  rules:
+  - alert: HighMemoryUsage
+    expr: hypervector_memory_usage_percent > 90
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High memory usage detected"
+      description: "Memory usage is above 90% for more than 5 minutes"
+
+  - alert: HighCPUUsage
+    expr: hypervector_cpu_usage_percent > 80
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High CPU usage detected"
+      description: "CPU usage is above 80% for more than 10 minutes"
+
+  - alert: ServiceDown
+    expr: up{job="hypervector"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "HyperVector service is down"
+      description: "HyperVector service has been down for more than 1 minute"

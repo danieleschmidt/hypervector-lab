@@ -1,0 +1,21 @@
+services:
+  hypervector-app:
+    build: .
+    cpus: '1.0'
+    environment:
+      HYPERVECTOR_CACHE_SIZE: '1000'
+      HYPERVECTOR_LOG_LEVEL: INFO
+      HYPERVECTOR_MAX_MEMORY_GB: '2'
+      PYTHONUNBUFFERED: '1'
+    mem_limit: 2g
+    ports:
+    - 8000:8000
+    - 8080:8080
+    restart: unless-stopped
+    volumes:
+    - ./data:/app/data
+    - ./logs:/app/logs
+version: '3.8'
+volumes:
+  hypervector-data: {}
+  hypervector-logs: {}

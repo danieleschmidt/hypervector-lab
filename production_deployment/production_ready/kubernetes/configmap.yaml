@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hypervector-config
+  namespace: hypervector-lab
+data:
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"
+  MAX_WORKERS: "4"
+  CACHE_TTL: "3600"

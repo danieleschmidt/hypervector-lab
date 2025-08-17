@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hypervector-lab
+  namespace: hypervector-lab
+  labels:
+    app: hypervector-lab
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 2
+  selector:
+    matchLabels:
+      app: hypervector-lab
+  template:
+    metadata:
+      labels:
+        app: hypervector-lab
+    spec:
+      containers:
+      - name: hypervector-lab
+        image: hypervector-lab:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: hypervector-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import hypervector; print('OK')"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import hypervector; print('OK')"
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+      securityContext:
+        fsGroup: 1000

@@ -1,0 +1,20 @@
+{
+  "environment": "staging",
+  "log_level": "INFO",
+  "debug": false,
+  "database": {
+    "host": "${STAGING_DB_HOST}",
+    "port": 5432,
+    "name": "hypervector_staging"
+  },
+  "monitoring": {
+    "enabled": true,
+    "metrics_port": 9090
+  },
+  "security": {
+    "cors_origins": [
+      "https://staging.hypervector.example.com"
+    ],
+    "require_auth": true
+  }
+}
