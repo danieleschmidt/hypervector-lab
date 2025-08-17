@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: hypervector-app
+    version: 1.0.0
+  name: hypervector-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hypervector-app
+  template:
+    metadata:
+      labels:
+        app: hypervector-app
+    spec:
+      containers:
+      - env:
+        - name: HYPERVECTOR_LOG_LEVEL
+          value: INFO
+        - name: HYPERVECTOR_CACHE_SIZE
+          value: '1000'
+        - name: HYPERVECTOR_MAX_MEMORY_GB
+          value: '2'
+        - name: PYTHONUNBUFFERED
+          value: '1'
+        image: hypervector-app:latest
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - import hypervector; print("Health check passed")
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        name: hypervector-app
+        ports:
+        - containerPort: 8000
+        - containerPort: 8080
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - import hypervector; print("Ready")
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: '1.0'
+            memory: 2g
+          requests:
+            cpu: '0.5'
+            memory: 1Gi
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000

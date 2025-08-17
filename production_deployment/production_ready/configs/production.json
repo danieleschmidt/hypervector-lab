@@ -1,0 +1,39 @@
+{
+  "environment": "production",
+  "log_level": "INFO",
+  "debug": false,
+  "database": {
+    "host": "${DB_HOST}",
+    "port": "${DB_PORT}",
+    "name": "${DB_NAME}",
+    "user": "${DB_USER}",
+    "password": "${DB_PASSWORD}"
+  },
+  "redis": {
+    "host": "${REDIS_HOST}",
+    "port": "${REDIS_PORT}",
+    "password": "${REDIS_PASSWORD}"
+  },
+  "monitoring": {
+    "enabled": true,
+    "metrics_port": 9090,
+    "prometheus_endpoint": "/metrics"
+  },
+  "security": {
+    "cors_origins": [
+      "${ALLOWED_ORIGINS}"
+    ],
+    "require_auth": true,
+    "jwt_secret": "${JWT_SECRET}",
+    "rate_limiting": {
+      "enabled": true,
+      "requests_per_minute": 100
+    }
+  },
+  "scaling": {
+    "auto_scale": true,
+    "min_replicas": 2,
+    "max_replicas": 10,
+    "target_cpu_utilization": 70
+  }
+}

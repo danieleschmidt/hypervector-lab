@@ -1,0 +1,25 @@
+{
+  "environment": "development",
+  "log_level": "DEBUG",
+  "debug": true,
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "hypervector_dev"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "db": 0
+  },
+  "monitoring": {
+    "enabled": true,
+    "metrics_port": 9090
+  },
+  "security": {
+    "cors_origins": [
+      "http://localhost:3000"
+    ],
+    "require_auth": false
+  }
+}

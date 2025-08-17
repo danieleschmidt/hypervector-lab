@@ -1,0 +1,43 @@
+# HyperVector-Lab GPU Dockerfile
+FROM nvidia/cuda:12.1-devel-ubuntu22.04 AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml .
+RUN pip3 install --no-cache-dir -e ".[cuda]"
+
+FROM nvidia/cuda:12.1-runtime-ubuntu22.04 AS production
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3-pip \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+COPY hypervector/ ./hypervector/
+COPY examples/ ./examples/
+
+RUN useradd -m -u 1000 hypervector && \
+    chown -R hypervector:hypervector /app
+USER hypervector
+
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3 -c "import torch; print('CUDA available:', torch.cuda.is_available())" || exit 1
+
+CMD ["python3", "-c", "import hypervector; print('HyperVector-Lab GPU ready')"]

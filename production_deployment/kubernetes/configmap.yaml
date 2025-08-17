@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hypervector-config
+  namespace: hypervector
+data:
+  config.json: |
+    {
+      "default_dim": 10000,
+      "default_device": "cpu",
+      "logging_level": "INFO",
+      "performance_monitoring": true,
+      "memory_limit_mb": 1024,
+      "cache_size_mb": 256,
+      "auto_scaling": {
+        "enabled": true,
+        "min_workers": 2,
+        "max_workers": 8,
+        "target_cpu_percent": 70
+      }
+    }

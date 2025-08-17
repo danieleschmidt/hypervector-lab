@@ -1,0 +1,11 @@
+alerts:
+  cpu_threshold: 80%
+  error_rate_threshold: 5%
+  memory_threshold: 80%
+grafana:
+  enabled: true
+  port: 3000
+prometheus:
+  enabled: true
+  metrics_path: /metrics
+  port: 9090
