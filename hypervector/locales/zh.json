@@ -1,0 +1,23 @@
+{
+  "system.initialized": "HDC系统初始化成功",
+  "system.error": "系统错误: {error}",
+  "system.warning": "警告: {message}",
+  "operation.encode_text": "正在将文本编码为超向量",
+  "operation.encode_image": "正在将图像编码为超向量",
+  "operation.encode_eeg": "正在将EEG信号编码为超向量",
+  "operation.bind": "正在绑定超向量",
+  "operation.bundle": "正在捆绑超向量",
+  "operation.similarity": "正在计算相似性",
+  "validation.invalid_input": "无效输入: {details}",
+  "validation.dimension_error": "无效维度: {dim}",
+  "validation.device_error": "设备错误: {device}",
+  "performance.slow_operation": "检测到慢操作: {operation}花费了{time}毫秒",
+  "performance.memory_warning": "内存使用量高: {memory}MB",
+  "performance.optimization_suggestion": "优化建议: {suggestion}",
+  "security.input_sanitized": "输入已被清理",
+  "security.dangerous_pattern": "检测到危险模式: {pattern}",
+  "security.rate_limit_exceeded": "超过速率限制",
+  "research.experiment_started": "研究实验已开始: {experiment}",
+  "research.results_available": "研究结果可用",
+  "research.benchmark_complete": "基准测试完成: {benchmark}"
+}

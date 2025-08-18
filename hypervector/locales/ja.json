@@ -1,0 +1,23 @@
+{
+  "system.initialized": "HDCシステムが正常に初期化されました",
+  "system.error": "システムエラー: {error}",
+  "system.warning": "警告: {message}",
+  "operation.encode_text": "テキストをハイパーベクターにエンコード中",
+  "operation.encode_image": "画像をハイパーベクターにエンコード中",
+  "operation.encode_eeg": "EEG信号をハイパーベクターにエンコード中",
+  "operation.bind": "ハイパーベクターを結合中",
+  "operation.bundle": "ハイパーベクターを束ね中",
+  "operation.similarity": "類似度を計算中",
+  "validation.invalid_input": "無効な入力: {details}",
+  "validation.dimension_error": "無効な次元: {dim}",
+  "validation.device_error": "デバイスエラー: {device}",
+  "performance.slow_operation": "遅い操作が検出されました: {operation}は{time}msかかりました",
+  "performance.memory_warning": "メモリ使用量が高い: {memory}MB",
+  "performance.optimization_suggestion": "最適化の提案: {suggestion}",
+  "security.input_sanitized": "入力がサニタイズされました",
+  "security.dangerous_pattern": "危険なパターンが検出されました: {pattern}",
+  "security.rate_limit_exceeded": "レート制限を超過しました",
+  "research.experiment_started": "研究実験が開始されました: {experiment}",
+  "research.results_available": "研究結果が利用可能です",
+  "research.benchmark_complete": "ベンチマークが完了しました: {benchmark}"
+}

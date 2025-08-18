@@ -7,18 +7,19 @@ from typing import Union, Any
 from .validation import ValidationError
 
 
-def sanitize_input(text: str, max_length: int = 10000) -> str:
-    """Sanitize text input for safety.
+def sanitize_input(text: str, max_length: int = 10000, strict_mode: bool = False) -> str:
+    """Enhanced sanitization for text input with security hardening.
     
     Args:
         text: Input text to sanitize
         max_length: Maximum allowed length
+        strict_mode: Enable strict security checks
         
     Returns:
         Sanitized text
         
     Raises:
-        ValidationError: If input is invalid
+        ValidationError: If input is invalid or dangerous
     """
     if not isinstance(text, str):
         raise ValidationError("Input must be string")
@@ -26,11 +27,37 @@ def sanitize_input(text: str, max_length: int = 10000) -> str:
     if len(text) > max_length:
         raise ValidationError(f"Input too long: {len(text)} > {max_length}")
     
+    # Enhanced dangerous pattern detection
+    dangerous_patterns = [
+        '<script', 'javascript:', 'eval(', 'exec(', '__import__', 
+        'subprocess', 'os.system', 'open(', 'file(', 'input(',
+        'raw_input(', '<?php', '<%', '%>', 'import os', 'from os',
+        '../', '.\\', 'file://', 'ftp://', 'data:'
+    ]
+    
+    if strict_mode:
+        text_lower = text.lower()
+        for pattern in dangerous_patterns:
+            if pattern in text_lower:
+                raise ValidationError(f"Dangerous pattern detected: {pattern}")
+    
     # Remove control characters except whitespace
-    sanitized = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+    sanitized = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]', '', text)
     
     # Limit consecutive whitespace
     sanitized = re.sub(r'\s+', ' ', sanitized)
+    
+    # Check for URL encoding attempts to bypass filters if not in strict mode
+    if not strict_mode and ('%' in sanitized or '\\u' in sanitized):
+        try:
+            import urllib.parse
+            decoded = urllib.parse.unquote(sanitized)
+            for pattern in dangerous_patterns:
+                if pattern in decoded.lower():
+                    # Remove the pattern instead of raising error in non-strict mode
+                    sanitized = re.sub(re.escape(pattern), '', sanitized, flags=re.IGNORECASE)
+        except Exception:
+            pass  # Continue with original sanitized text
     
     return sanitized.strip()
 
@@ -101,8 +128,18 @@ def sanitize_filename(filename: str, max_length: int = 255) -> str:
     # Remove/replace dangerous characters
     sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', filename)
     
-    # Remove leading/trailing dots and spaces
+    # Remove leading/trailing dots and spaces (security hardening)
     sanitized = sanitized.strip('. ')
+    
+    # Additional security: prevent reserved names
+    reserved_names = {'CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 
+                     'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 
+                     'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 
+                     'LPT7', 'LPT8', 'LPT9'}
+    
+    name_without_ext = os.path.splitext(sanitized)[0].upper()
+    if name_without_ext in reserved_names:
+        sanitized = f'file_{sanitized}'
     
     # Truncate if too long
     if len(sanitized) > max_length:
