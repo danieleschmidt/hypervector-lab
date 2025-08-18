@@ -1,0 +1,23 @@
+{
+  "system.initialized": "Sistema HDC inicializado correctamente",
+  "system.error": "Error del sistema: {error}",
+  "system.warning": "Advertencia: {message}",
+  "operation.encode_text": "Codificando texto a hipervector",
+  "operation.encode_image": "Codificando imagen a hipervector",
+  "operation.encode_eeg": "Codificando señal EEG a hipervector",
+  "operation.bind": "Vinculando hipervectores",
+  "operation.bundle": "Agrupando hipervectores",
+  "operation.similarity": "Calculando similitud",
+  "validation.invalid_input": "Entrada inválida: {details}",
+  "validation.dimension_error": "Dimensión inválida: {dim}",
+  "validation.device_error": "Error de dispositivo: {device}",
+  "performance.slow_operation": "Operación lenta detectada: {operation} tardó {time}ms",
+  "performance.memory_warning": "Uso alto de memoria: {memory}MB",
+  "performance.optimization_suggestion": "Sugerencia de optimización: {suggestion}",
+  "security.input_sanitized": "La entrada ha sido sanitizada",
+  "security.dangerous_pattern": "Patrón peligroso detectado: {pattern}",
+  "security.rate_limit_exceeded": "Límite de velocidad excedido",
+  "research.experiment_started": "Experimento de investigación iniciado: {experiment}",
+  "research.results_available": "Resultados de investigación disponibles",
+  "research.benchmark_complete": "Benchmark completado: {benchmark}"
+}

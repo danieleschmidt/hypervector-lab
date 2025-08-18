@@ -1,0 +1,23 @@
+{
+  "system.initialized": "HDC System initialized successfully",
+  "system.error": "System error: {error}",
+  "system.warning": "Warning: {message}",
+  "operation.encode_text": "Encoding text to hypervector",
+  "operation.encode_image": "Encoding image to hypervector",
+  "operation.encode_eeg": "Encoding EEG signal to hypervector",
+  "operation.bind": "Binding hypervectors",
+  "operation.bundle": "Bundling hypervectors",
+  "operation.similarity": "Computing similarity",
+  "validation.invalid_input": "Invalid input: {details}",
+  "validation.dimension_error": "Invalid dimension: {dim}",
+  "validation.device_error": "Device error: {device}",
+  "performance.slow_operation": "Slow operation detected: {operation} took {time}ms",
+  "performance.memory_warning": "High memory usage: {memory}MB",
+  "performance.optimization_suggestion": "Optimization suggestion: {suggestion}",
+  "security.input_sanitized": "Input has been sanitized",
+  "security.dangerous_pattern": "Dangerous pattern detected: {pattern}",
+  "security.rate_limit_exceeded": "Rate limit exceeded",
+  "research.experiment_started": "Research experiment started: {experiment}",
+  "research.results_available": "Research results available",
+  "research.benchmark_complete": "Benchmark completed: {benchmark}"
+}
