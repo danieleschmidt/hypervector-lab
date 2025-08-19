@@ -1,53 +1,68 @@
 {
-  "timestamp": "2025-08-17 03:15:31",
-  "duration_seconds": 0.32,
-  "quality_score": 100.0,
-  "summary": {
-    "passed": 26,
-    "failed": 0,
-    "warnings": 4
-  },
-  "results": {
-    "passed": [
-      "Found Main package init: hypervector/__init__.py",
-      "Found Core functionality: hypervector/core/",
-      "Found Encoding modules: hypervector/encoders/",
-      "Found Application modules: hypervector/applications/",
-      "Found Performance accelerators: hypervector/accelerators/",
-      "Found Project configuration: pyproject.toml",
-      "Syntax validation passed for 83 files",
-      "Found Project overview and usage: README.md",
-      "Found Project configuration: pyproject.toml",
-      "README has substantial content",
-      "Found 13 test files",
-      "Performance module found: hypervector/accelerators/",
-      "Performance module found: hypervector/benchmark/",
-      "Performance module found: hypervector/production/",
-      "Good performance module coverage",
-      "Deployment config found: Dockerfile",
-      "Deployment config found: docker-compose.yml",
-      "Deployment config found: deployment_output/",
-      "Deployment config found: production_ready/",
-      "Deployment config found: pyproject.toml",
-      "Good deployment readiness",
-      "Test passed: Generation 1 validation",
-      "Test passed: Basic functionality test",
-      "Successfully ran 2 automated tests",
-      "Good file count: 158",
-      "Substantial codebase: 32256 lines"
-    ],
-    "failed": [],
-    "warnings": [
-      "Use of eval() function in hypervector/accelerators/cpu_optimized.py",
-      "Use of eval() function in hypervector/applications/retrieval.py",
-      "Use of eval() function in hypervector/benchmark/benchmarks.py",
-      "Use of eval() function in hypervector/research/multimodal_fusion_optimization.py"
-    ],
-    "metrics": {
-      "total_files": 158,
-      "total_lines": 32256,
-      "python_files": 83
+  "timestamp": "2025-08-19T21:56:37.078251",
+  "overall_status": "PASS",
+  "categories": {
+    "security": {
+      "overall_score": 100.0,
+      "individual_audits": {
+        "input_validation": {
+          "status": "pass",
+          "issues": [],
+          "score": 100
+        },
+        "memory_safety": {
+          "status": "pass",
+          "issues": [],
+          "score": 100
+        },
+        "access_control": {
+          "status": "pass",
+          "issues": [],
+          "score": 100
+        },
+        "data_sanitization": {
+          "status": "pass",
+          "issues": [],
+          "score": 100
+        },
+        "error_disclosure": {
+          "status": "pass",
+          "issues": [],
+          "score": 100
+        },
+        "resource_limits": {
+          "status": "pass",
+          "issues": [],
+          "score": 100
+        }
+      },
+      "pass_threshold": 85,
+      "status": "pass"
+    },
+    "performance": {
+      "overall_status": "pass",
+      "individual_benchmarks": {
+        "vector_operations": {
+          "operations": {
+            "vector_generation_ms": 0.6372284889221191,
+            "bind_operation_ms": 0.06347274780273438,
+            "similarity_computation_ms": 0.30106067657470703
+          },
+          "pass": true
+        }
+      },
+      "requirements": {
+        "vector_generation_ms": 1.0,
+        "bind_operation_ms": 0.1,
+        "similarity_computation_ms": 0.5,
+        "memory_query_ms": 10.0,
+        "cache_hit_ratio_min": 0.8,
+        "operations_per_second_min": 1000
+      }
     }
   },
-  "recommendations": []
+  "summary": {
+    "security_score": 100.0,
+    "performance_status": "pass"
+  }
 }
