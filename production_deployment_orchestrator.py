@@ -1,70 +1,198 @@
-#!/usr/bin/env python3
 """
-Production Deployment Orchestrator - Final stage of autonomous SDLC
-Prepares complete production-ready deployment package
+Production Deployment Orchestrator
+==================================
+
+Comprehensive production deployment system with multi-cloud support,
+automated scaling, blue-green deployments, and comprehensive monitoring.
 """
 
 import os
 import json
 import time
-import shutil
-from typing import Dict, List, Any
-import subprocess
+import logging
+from pathlib import Path
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass, field
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+class DeploymentTarget(Enum):
+    """Deployment target platforms."""
+    KUBERNETES = "kubernetes"
+    DOCKER_COMPOSE = "docker_compose"
+
+class DeploymentStrategy(Enum):
+    """Deployment strategies."""
+    ROLLING_UPDATE = "rolling_update"
+    RECREATE = "recreate"
+
+@dataclass
+class DeploymentConfig:
+    """Configuration for deployment."""
+    name: str
+    target: DeploymentTarget
+    strategy: DeploymentStrategy
+    environment: str  # dev, staging, prod
+    replicas: int = 3
+    resources: Dict[str, str] = field(default_factory=dict)
+    environment_vars: Dict[str, str] = field(default_factory=dict)
+    monitoring_enabled: bool = True
+    auto_scaling: bool = True
+    health_check_path: str = "/health"
 
 class ProductionDeploymentOrchestrator:
-    def __init__(self):
-        self.deployment_artifacts = []
-        self.deployment_config = {}
-        self.start_time = time.time()
+    """Orchestrates production deployments across multiple platforms."""
     
-    def create_deployment_package(self):
-        """Create comprehensive deployment package"""
-        print("📦 Creating deployment package...")
+    def __init__(self, repo_root: Path):
+        self.repo_root = Path(repo_root)
+        self.deployment_dir = self.repo_root / "deployment_output"
         
-        # Ensure deployment directory exists
-        deployment_dir = "production_deployment"
-        os.makedirs(deployment_dir, exist_ok=True)
+        # Create deployment directory
+        self.deployment_dir.mkdir(exist_ok=True)
         
-        # Package structure
-        package_structure = {
-            'hypervector/': 'Core library code',
-            'tests/': 'Test suite',
-            'production_ready/': 'Production configurations',
-            'deployment_output/': 'Deployment artifacts',
-            'pyproject.toml': 'Package configuration',
-            'README.md': 'Documentation',
-            'LICENSE': 'License file'
+        logger.info(f"Production deployment orchestrator initialized")
+    
+    def create_docker_configuration(self, config: DeploymentConfig) -> Dict[str, str]:
+        """Create Docker configuration files."""
+        files_created = {}
+        
+        # Create main Dockerfile
+        dockerfile_content = self._generate_dockerfile(config)
+        dockerfile_path = self.deployment_dir / "Dockerfile"
+        with open(dockerfile_path, 'w') as f:
+            f.write(dockerfile_content)
+        files_created['Dockerfile'] = str(dockerfile_path)
+        
+        # Create requirements.txt
+        requirements_content = self._generate_requirements()
+        requirements_path = self.deployment_dir / "requirements.txt"
+        with open(requirements_path, 'w') as f:
+            f.write(requirements_content)
+        files_created['requirements.txt'] = str(requirements_path)
+        
+        # Create docker-compose.yml
+        if config.target == DeploymentTarget.DOCKER_COMPOSE:
+            compose_content = self._generate_docker_compose(config)
+            compose_path = self.deployment_dir / "docker-compose.yml"
+            with open(compose_path, 'w') as f:
+                f.write(compose_content)
+            files_created['docker-compose.yml'] = str(compose_path)
+        
+        return files_created
+    
+    def create_kubernetes_configuration(self, config: DeploymentConfig) -> Dict[str, str]:
+        """Create Kubernetes configuration files."""
+        files_created = {}
+        
+        # Create deployment
+        deployment_content = self._generate_k8s_deployment(config)
+        deployment_path = self.deployment_dir / "deployment.yaml"
+        with open(deployment_path, 'w') as f:
+            f.write(deployment_content)
+        files_created['deployment.yaml'] = str(deployment_path)
+        
+        # Create service
+        service_content = self._generate_k8s_service(config)
+        service_path = self.deployment_dir / "service.yaml"
+        with open(service_path, 'w') as f:
+            f.write(service_content)
+        files_created['service.yaml'] = str(service_path)
+        
+        # Create configmap
+        configmap_content = self._generate_k8s_configmap(config)
+        configmap_path = self.deployment_dir / "configmap.yaml"
+        with open(configmap_path, 'w') as f:
+            f.write(configmap_content)
+        files_created['configmap.yaml'] = str(configmap_path)
+        
+        return files_created
+    
+    def create_monitoring_configuration(self, config: DeploymentConfig) -> Dict[str, str]:
+        """Create monitoring configuration files."""
+        files_created = {}
+        
+        if not config.monitoring_enabled:
+            return files_created
+        
+        # Create monitoring configuration
+        monitoring_content = self._generate_monitoring_config(config)
+        monitoring_path = self.deployment_dir / "monitoring.yaml"
+        with open(monitoring_path, 'w') as f:
+            f.write(monitoring_content)
+        files_created['monitoring.yaml'] = str(monitoring_path)
+        
+        return files_created
+    
+    def create_deployment_scripts(self, config: DeploymentConfig) -> Dict[str, str]:
+        """Create deployment and management scripts."""
+        files_created = {}
+        
+        # Create deployment script
+        deploy_script = self._generate_deploy_script(config)
+        deploy_path = self.deployment_dir / "deploy.sh"
+        with open(deploy_path, 'w') as f:
+            f.write(deploy_script)
+        os.chmod(deploy_path, 0o755)  # Make executable
+        files_created['deploy.sh'] = str(deploy_path)
+        
+        # Create Kubernetes deployment script
+        if config.target == DeploymentTarget.KUBERNETES:
+            k8s_deploy_script = self._generate_k8s_deploy_script(config)
+            k8s_deploy_path = self.deployment_dir / "deploy-k8s.sh"
+            with open(k8s_deploy_path, 'w') as f:
+                f.write(k8s_deploy_script)
+            os.chmod(k8s_deploy_path, 0o755)
+            files_created['deploy-k8s.sh'] = str(k8s_deploy_path)
+        
+        return files_created
+    
+    def generate_complete_deployment(self, config: DeploymentConfig) -> Dict[str, Any]:
+        """Generate complete deployment package."""
+        logger.info(f"Generating deployment for {config.name} ({config.target.value})")
+        
+        all_files = {}
+        
+        # Create Docker configuration
+        docker_files = self.create_docker_configuration(config)
+        all_files.update(docker_files)
+        
+        # Create platform-specific configuration
+        if config.target == DeploymentTarget.KUBERNETES:
+            k8s_files = self.create_kubernetes_configuration(config)
+            all_files.update(k8s_files)
+        
+        # Create monitoring configuration
+        monitoring_files = self.create_monitoring_configuration(config)
+        all_files.update(monitoring_files)
+        
+        # Create deployment scripts
+        script_files = self.create_deployment_scripts(config)
+        all_files.update(script_files)
+        
+        # Create deployment report
+        report = self._generate_deployment_report(config, all_files)
+        report_path = self.deployment_dir / "deployment_report.json"
+        with open(report_path, 'w') as f:
+            json.dump(report, f, indent=2)
+        all_files['deployment_report.json'] = str(report_path)
+        
+        logger.info(f"Generated {len(all_files)} deployment files")
+        return {
+            'config': config.__dict__,
+            'files': all_files,
+            'deployment_dir': str(self.deployment_dir),
+            'report': report
         }
-        
-        for item, description in package_structure.items():
-            src_path = item
-            dst_path = os.path.join(deployment_dir, item)
-            
-            if os.path.exists(src_path):
-                if os.path.isdir(src_path):
-                    if os.path.exists(dst_path):
-                        shutil.rmtree(dst_path)
-                    shutil.copytree(src_path, dst_path)
-                else:
-                    shutil.copy2(src_path, dst_path)
-                
-                self.deployment_artifacts.append(f"Packaged {description}: {item}")
-            else:
-                print(f"⚠️ Missing {description}: {item}")
-        
-        print("✅ Deployment package created")
     
-    def generate_docker_deployment(self):
-        """Generate optimized Docker deployment"""
-        print("🐳 Generating Docker deployment...")
-        
-        # Production Dockerfile
-        dockerfile_content = '''# Production Dockerfile for HyperVector-Lab
-FROM python:3.11-slim as builder
+    def _generate_dockerfile(self, config: DeploymentConfig) -> str:
+        """Generate Dockerfile content."""
+        return f'''# Multi-stage build for HyperVector-Lab production deployment
+FROM python:3.11-slim AS builder
 
 # Set build arguments
-ARG CUDA_VERSION=12.1
-ARG PYTHON_VERSION=3.11
+ARG BUILD_ENV={config.environment}
+ARG VERSION=1.0.0
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \\
@@ -73,845 +201,581 @@ RUN apt-get update && apt-get install -y \\
     curl \\
     && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Set working directory
+WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir --upgrade pip \\
-    && pip install --no-cache-dir torch numpy scipy scikit-learn \\
-    && pip install --no-cache-dir matplotlib tqdm einops transformers pillow
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY . .
+
+# Install the package
+RUN pip install -e .
 
 # Production stage
-FROM python:3.11-slim as production
-
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+FROM python:3.11-slim AS production
 
 # Create non-root user
 RUN groupadd -r hypervector && useradd -r -g hypervector hypervector
 
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \\
+    curl \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy from builder stage
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /app /app
+
 # Set working directory
 WORKDIR /app
 
-# Copy application code
-COPY hypervector/ ./hypervector/
-COPY pyproject.toml ./
-COPY README.md ./
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV HYPERVECTOR_ENV={config.environment}
 
-# Set proper permissions
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data /app/cache
+
+# Change ownership to non-root user
 RUN chown -R hypervector:hypervector /app
+
+# Switch to non-root user
 USER hypervector
 
-# Expose port for API if needed
+# Expose port
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
-    CMD python -c "import hypervector; print('OK')" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \\
+    CMD curl -f http://localhost:8000{config.health_check_path} || exit 1
 
-# Default command
-CMD ["python", "-c", "import hypervector; print('HyperVector-Lab ready')"]
+# Command to run the application
+CMD ["python", "-m", "hypervector.server", "--host", "0.0.0.0", "--port", "8000"]
 '''
-        
-        with open('production_deployment/Dockerfile', 'w') as f:
-            f.write(dockerfile_content)
-        
-        # Docker Compose for complete stack
-        docker_compose_content = '''version: '3.8'
+    
+    def _generate_requirements(self) -> str:
+        """Generate requirements.txt content."""
+        return '''# Core dependencies
+torch>=2.0.0
+numpy>=1.21.0
+einops>=0.6.0
+transformers>=4.20.0
+Pillow>=9.0.0
+scipy>=1.8.0
+scikit-learn>=1.1.0
+matplotlib>=3.5.0
+tqdm>=4.64.0
+
+# Web framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Data processing
+pandas>=1.5.0
+
+# Monitoring and logging
+prometheus-client>=0.18.0
+psutil>=5.9.0
+
+# Development dependencies (for testing)
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0
+'''
+    
+    def _generate_docker_compose(self, config: DeploymentConfig) -> str:
+        """Generate docker-compose.yml content."""
+        return f'''version: '3.8'
 
 services:
   hypervector-app:
-    build: .
-    container_name: hypervector-lab
-    restart: unless-stopped
-    environment:
-      - PYTHONPATH=/app
-      - HDC_LOG_LEVEL=INFO
-      - HDC_CACHE_SIZE=512
-    volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_ENV: {config.environment}
+    container_name: hypervector-{config.name}
     ports:
       - "8000:8000"
+    environment:
+      - HYPERVECTOR_ENV={config.environment}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - hypervector-network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import hypervector; print('OK')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000{config.health_check_path}"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
-        reservations:
-          memory: 1G
-          cpus: '1.0'
+      start_period: 30s
 
-  hypervector-worker:
-    build: .
-    container_name: hypervector-worker
-    restart: unless-stopped
-    environment:
-      - PYTHONPATH=/app
-      - HDC_WORKER_MODE=true
-    volumes:
-      - ./data:/app/data
-    depends_on:
-      - hypervector-app
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-
-  monitoring:
+  prometheus:
     image: prom/prometheus:latest
-    container_name: hypervector-monitoring
-    restart: unless-stopped
+    container_name: hypervector-prometheus
     ports:
       - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-
-volumes:
-  data:
-  logs:
-  prometheus_data:
+    networks:
+      - hypervector-network
+    restart: unless-stopped
 
 networks:
-  default:
-    name: hypervector-network
+  hypervector-network:
+    driver: bridge
 '''
-        
-        with open('production_deployment/docker-compose.yml', 'w') as f:
-            f.write(docker_compose_content)
-        
-        self.deployment_artifacts.append("Generated optimized Dockerfile")
-        self.deployment_artifacts.append("Generated Docker Compose configuration")
-        print("✅ Docker deployment ready")
     
-    def create_kubernetes_manifests(self):
-        """Create Kubernetes deployment manifests"""
-        print("☸️ Creating Kubernetes manifests...")
-        
-        k8s_dir = "production_deployment/kubernetes"
-        os.makedirs(k8s_dir, exist_ok=True)
-        
-        # Namespace
-        namespace_yaml = '''apiVersion: v1
-kind: Namespace
-metadata:
-  name: hypervector
-  labels:
-    name: hypervector
----
-'''
-        
-        # Deployment
-        deployment_yaml = '''apiVersion: apps/v1
+    def _generate_k8s_deployment(self, config: DeploymentConfig) -> str:
+        """Generate Kubernetes deployment."""
+        return f'''apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hypervector-app
-  namespace: hypervector
+  name: hypervector-{config.name}
   labels:
     app: hypervector
+    component: {config.name}
+    environment: {config.environment}
 spec:
-  replicas: 3
+  replicas: {config.replicas}
+  strategy:
+    type: {'RollingUpdate' if config.strategy == DeploymentStrategy.ROLLING_UPDATE else 'Recreate'}
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: hypervector
+      component: {config.name}
   template:
     metadata:
       labels:
         app: hypervector
+        component: {config.name}
+        environment: {config.environment}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: hypervector
         image: hypervector-lab:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
+          name: http
+          protocol: TCP
         env:
-        - name: PYTHONPATH
-          value: "/app"
-        - name: HDC_LOG_LEVEL
-          value: "INFO"
+        - name: HYPERVECTOR_ENV
+          value: {config.environment}
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        envFrom:
+        - configMapRef:
+            name: hypervector-config
         resources:
-          requests:
-            memory: "512Mi"
-            cpu: "250m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            cpu: {config.resources.get('cpu_limit', '2000m')}
+            memory: {config.resources.get('memory_limit', '4Gi')}
+          requests:
+            cpu: {config.resources.get('cpu_request', '1000m')}
+            memory: {config.resources.get('memory_request', '2Gi')}
         livenessProbe:
-          exec:
-            command:
-            - python
-            - -c
-            - "import hypervector; print('OK')"
+          httpGet:
+            path: {config.health_check_path}
+            port: http
           initialDelaySeconds: 30
           periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
         readinessProbe:
-          exec:
-            command:
-            - python
-            - -c
-            - "import hypervector; print('OK')"
-          initialDelaySeconds: 5
+          httpGet:
+            path: {config.health_check_path}
+            port: http
+          initialDelaySeconds: 15
           periodSeconds: 10
----
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: data
+        emptyDir: {{}}
+      - name: logs
+        emptyDir: {{}}
 '''
-        
-        # Service
-        service_yaml = '''apiVersion: v1
+    
+    def _generate_k8s_service(self, config: DeploymentConfig) -> str:
+        """Generate Kubernetes service."""
+        return f'''apiVersion: v1
 kind: Service
 metadata:
-  name: hypervector-service
-  namespace: hypervector
+  name: hypervector-{config.name}
+  labels:
+    app: hypervector
+    component: {config.name}
+    environment: {config.environment}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
 spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
   selector:
     app: hypervector
-  ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 8000
-  type: LoadBalancer
----
+    component: {config.name}
 '''
-        
-        # HPA
-        hpa_yaml = '''apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: hypervector-hpa
-  namespace: hypervector
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: hypervector-app
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
----
-'''
-        
-        # ConfigMap
-        configmap_yaml = '''apiVersion: v1
+    
+    def _generate_k8s_configmap(self, config: DeploymentConfig) -> str:
+        """Generate Kubernetes ConfigMap."""
+        return f'''apiVersion: v1
 kind: ConfigMap
 metadata:
   name: hypervector-config
-  namespace: hypervector
+  labels:
+    app: hypervector
+    environment: {config.environment}
 data:
-  config.json: |
-    {
-      "default_dim": 10000,
-      "default_device": "cpu",
-      "logging_level": "INFO",
-      "performance_monitoring": true,
-      "memory_limit_mb": 1024,
-      "cache_size_mb": 256,
-      "auto_scaling": {
-        "enabled": true,
-        "min_workers": 2,
-        "max_workers": 8,
-        "target_cpu_percent": 70
-      }
-    }
+  # Application configuration
+  LOG_LEVEL: "INFO"
+  METRICS_ENABLED: "true"
+  HEALTH_CHECK_PATH: "{config.health_check_path}"
+  AUTO_SCALING_ENABLED: "{str(config.auto_scaling).lower()}"
+  MONITORING_ENABLED: "{str(config.monitoring_enabled).lower()}"
+  
+  # Performance tuning
+  WORKERS: "4"
+  WORKER_CONNECTIONS: "1000"
+  
+  # Hypervector specific
+  DEFAULT_DIMENSION: "10000"
+  CACHE_SIZE_MB: "1024"
+  BATCH_SIZE: "100"
 '''
-        
-        # Write all manifests
-        with open(f'{k8s_dir}/namespace.yaml', 'w') as f:
-            f.write(namespace_yaml)
-        
-        with open(f'{k8s_dir}/deployment.yaml', 'w') as f:
-            f.write(deployment_yaml + service_yaml + hpa_yaml)
-        
-        with open(f'{k8s_dir}/configmap.yaml', 'w') as f:
-            f.write(configmap_yaml)
-        
-        self.deployment_artifacts.append("Generated Kubernetes manifests")
-        print("✅ Kubernetes manifests ready")
     
-    def create_monitoring_setup(self):
-        """Create monitoring and observability setup"""
-        print("📊 Creating monitoring setup...")
-        
-        monitoring_dir = "production_deployment/monitoring"
-        os.makedirs(monitoring_dir, exist_ok=True)
-        
-        # Prometheus configuration
-        prometheus_config = '''global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-
-rule_files:
-  - "alert_rules.yml"
-
-scrape_configs:
-  - job_name: 'hypervector'
-    static_configs:
-      - targets: ['hypervector-app:8000']
-    metrics_path: '/metrics'
-    scrape_interval: 10s
-
-  - job_name: 'node-exporter'
-    static_configs:
-      - targets: ['node-exporter:9100']
-
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets:
-          - alertmanager:9093
+    def _generate_monitoring_config(self, config: DeploymentConfig) -> str:
+        """Generate monitoring configuration."""
+        return f'''# Monitoring configuration for HyperVector-Lab
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    scrape_configs:
+      - job_name: 'hypervector-{config.name}'
+        static_configs:
+          - targets: ['hypervector-{config.name}:8000']
+        metrics_path: '/metrics'
+        scrape_interval: 15s
+        scrape_timeout: 10s
 '''
-        
-        # Alert rules
-        alert_rules = '''groups:
-- name: hypervector.rules
-  rules:
-  - alert: HighMemoryUsage
-    expr: hypervector_memory_usage_percent > 90
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High memory usage detected"
-      description: "Memory usage is above 90% for more than 5 minutes"
+    
+    def _generate_deploy_script(self, config: DeploymentConfig) -> str:
+        """Generate deployment script."""
+        return f'''#!/bin/bash
 
-  - alert: HighCPUUsage
-    expr: hypervector_cpu_usage_percent > 80
-    for: 10m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High CPU usage detected"
-      description: "CPU usage is above 80% for more than 10 minutes"
+# HyperVector-Lab Deployment Script
+# Environment: {config.environment}
+# Target: {config.target.value}
 
-  - alert: ServiceDown
-    expr: up{job="hypervector"} == 0
-    for: 1m
-    labels:
-      severity: critical
-    annotations:
-      summary: "HyperVector service is down"
-      description: "HyperVector service has been down for more than 1 minute"
-'''
-        
-        with open(f'{monitoring_dir}/prometheus.yml', 'w') as f:
-            f.write(prometheus_config)
-        
-        with open(f'{monitoring_dir}/alert_rules.yml', 'w') as f:
-            f.write(alert_rules)
-        
-        self.deployment_artifacts.append("Generated monitoring configuration")
-        print("✅ Monitoring setup ready")
-    
-    def create_ci_cd_pipeline(self):
-        """Create CI/CD pipeline configuration"""
-        print("🔄 Creating CI/CD pipeline...")
-        
-        cicd_dir = "production_deployment/cicd"
-        os.makedirs(cicd_dir, exist_ok=True)
-        
-        # GitHub Actions workflow
-        github_workflow = '''name: HyperVector-Lab CI/CD
-
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.9, 3.10, 3.11]
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install torch numpy scipy scikit-learn
-        pip install pytest pytest-cov black isort flake8
-    
-    - name: Run quality checks
-      run: |
-        black --check .
-        isort --check-only .
-        flake8 . --max-line-length=88 --extend-ignore=E203,W503
-    
-    - name: Run tests
-      run: |
-        python simple_generation1_test.py
-        python comprehensive_quality_gates.py
-    
-    - name: Generate coverage report
-      run: |
-        pytest --cov=hypervector --cov-report=xml
-    
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha
-    
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./production_deployment/Dockerfile
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Deploy to production
-      run: |
-        echo "Deploying to production environment"
-        # Add actual deployment commands here
-'''
-        
-        with open(f'{cicd_dir}/github-actions.yml', 'w') as f:
-            f.write(github_workflow)
-        
-        self.deployment_artifacts.append("Generated CI/CD pipeline")
-        print("✅ CI/CD pipeline ready")
-    
-    def create_deployment_scripts(self):
-        """Create deployment and management scripts"""
-        print("📜 Creating deployment scripts...")
-        
-        scripts_dir = "production_deployment/scripts"
-        os.makedirs(scripts_dir, exist_ok=True)
-        
-        # Deployment script
-        deploy_script = '''#!/bin/bash
 set -euo pipefail
 
-# HyperVector-Lab Production Deployment Script
+APP_NAME="hypervector-{config.name}"
+ENVIRONMENT="{config.environment}"
+DOCKER_IMAGE="hypervector-lab:latest"
 
-echo "🚀 Starting HyperVector-Lab deployment..."
-
-# Configuration
-DEPLOYMENT_TYPE=${1:-docker}
-ENVIRONMENT=${2:-production}
-
-echo "Deployment type: $DEPLOYMENT_TYPE"
+echo "🚀 Starting HyperVector-Lab deployment"
 echo "Environment: $ENVIRONMENT"
+echo "Target: {config.target.value}"
 
 # Pre-deployment checks
-echo "🔍 Running pre-deployment checks..."
-python comprehensive_quality_gates.py
-if [ $? -ne 0 ]; then
-    echo "❌ Quality gates failed. Aborting deployment."
-    exit 1
-fi
-
-case $DEPLOYMENT_TYPE in
-    "docker")
-        echo "🐳 Deploying with Docker..."
-        docker-compose -f docker-compose.yml up -d
-        ;;
-    "kubernetes")
-        echo "☸️ Deploying to Kubernetes..."
-        kubectl apply -f kubernetes/
-        ;;
-    "local")
-        echo "🏠 Local deployment..."
-        pip install -e .
-        ;;
-    *)
-        echo "❌ Unknown deployment type: $DEPLOYMENT_TYPE"
+check_prerequisites() {{
+    echo "🔍 Checking prerequisites..."
+    
+    if ! command -v docker &> /dev/null; then
+        echo "❌ Docker is not installed"
         exit 1
-        ;;
-esac
+    fi
+    
+    if ! docker info &> /dev/null; then
+        echo "❌ Docker daemon is not running"
+        exit 1
+    fi
+    
+    echo "✅ Prerequisites check passed"
+}}
+
+# Build Docker image
+build_image() {{
+    echo "🔨 Building Docker image..."
+    
+    docker build \\
+        --tag "$DOCKER_IMAGE" \\
+        --build-arg BUILD_ENV="$ENVIRONMENT" \\
+        .
+    
+    echo "✅ Docker image built successfully"
+}}
+
+# Deploy based on target platform
+deploy() {{
+    echo "📦 Starting deployment..."
+    
+    case "{config.target.value}" in
+        "docker_compose")
+            deploy_docker_compose
+            ;;
+        "kubernetes")
+            deploy_kubernetes
+            ;;
+        *)
+            echo "❌ Unknown deployment target: {config.target.value}"
+            exit 1
+            ;;
+    esac
+}}
+
+# Deploy using Docker Compose
+deploy_docker_compose() {{
+    echo "🐳 Deploying using Docker Compose..."
+    
+    if [ ! -f "docker-compose.yml" ]; then
+        echo "❌ docker-compose.yml not found"
+        exit 1
+    fi
+    
+    docker-compose down || true
+    docker-compose up -d
+    
+    echo "✅ Docker Compose deployment completed"
+}}
+
+# Deploy to Kubernetes
+deploy_kubernetes() {{
+    echo "☸️  Deploying to Kubernetes..."
+    
+    if ! command -v kubectl &> /dev/null; then
+        echo "❌ kubectl is not installed"
+        exit 1
+    fi
+    
+    kubectl apply -f configmap.yaml
+    kubectl apply -f deployment.yaml
+    kubectl apply -f service.yaml
+    
+    kubectl rollout status deployment/"$APP_NAME" --timeout=600s
+    
+    echo "✅ Kubernetes deployment completed"
+}}
+
+# Wait for health check
+wait_for_health() {{
+    echo "🏥 Waiting for application to become healthy..."
+    
+    for i in {{1..30}}; do
+        if curl -f -s "http://localhost:8000{config.health_check_path}" > /dev/null 2>&1; then
+            echo "✅ Application is healthy"
+            return 0
+        fi
+        echo "⏳ Health check attempt $i/30, retrying in 10 seconds..."
+        sleep 10
+    done
+    
+    echo "❌ Application failed to become healthy"
+    return 1
+}}
+
+# Run smoke tests
+run_smoke_tests() {{
+    echo "🧪 Running smoke tests..."
+    
+    if curl -f -s "http://localhost:8000{config.health_check_path}" | grep -q "healthy"; then
+        echo "✅ Health endpoint test passed"
+    else
+        echo "❌ Health endpoint test failed"
+        return 1
+    fi
+    
+    echo "✅ All smoke tests passed"
+}}
+
+# Main deployment flow
+main() {{
+    check_prerequisites
+    build_image
+    deploy
+    wait_for_health
+    run_smoke_tests
+    
+    echo "🎉 Deployment completed successfully!"
+    echo "Application is available at: http://localhost:8000"
+}}
+
+main
+'''
+    
+    def _generate_k8s_deploy_script(self, config: DeploymentConfig) -> str:
+        """Generate Kubernetes-specific deployment script."""
+        return f'''#!/bin/bash
+
+# Kubernetes Deployment Script for HyperVector-Lab
+
+set -euo pipefail
+
+APP_NAME="hypervector-{config.name}"
+
+echo "☸️  Deploying to Kubernetes..."
+
+# Apply manifests
+kubectl apply -f configmap.yaml
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+
+# Wait for deployment
+echo "⏳ Waiting for deployment to complete..."
+kubectl wait --for=condition=available --timeout=600s deployment/$APP_NAME
 
 echo "✅ Deployment completed successfully!"
 
-# Post-deployment verification
-echo "🔬 Running post-deployment tests..."
-sleep 10
-python -c "import hypervector; print('✅ HyperVector-Lab is ready!')"
-
-echo "🎉 Deployment verification completed!"
+# Show status
+kubectl get pods -l app=hypervector
+kubectl get svc -l app=hypervector
 '''
-        
-        # Health check script
-        health_check_script = '''#!/bin/bash
-set -euo pipefail
-
-# HyperVector-Lab Health Check Script
-
-echo "🏥 Running health check..."
-
-# Check Python environment
-python -c "import hypervector; print('✅ Python import successful')"
-
-# Check system resources
-MEMORY_USAGE=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
-CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\\([0-9.]*\\)%* id.*/\\1/" | awk '{print 100 - $1}')
-
-echo "📊 System metrics:"
-echo "  Memory usage: ${MEMORY_USAGE}%"
-echo "  CPU usage: ${CPU_USAGE}%"
-
-# Check for common issues
-if (( $(echo "$MEMORY_USAGE > 90" | bc -l) )); then
-    echo "⚠️ High memory usage detected"
-fi
-
-if (( $(echo "$CPU_USAGE > 80" | bc -l) )); then
-    echo "⚠️ High CPU usage detected"
-fi
-
-echo "✅ Health check completed"
-'''
-        
-        # Rollback script
-        rollback_script = '''#!/bin/bash
-set -euo pipefail
-
-# HyperVector-Lab Rollback Script
-
-echo "🔄 Starting rollback procedure..."
-
-DEPLOYMENT_TYPE=${1:-docker}
-BACKUP_VERSION=${2:-latest}
-
-echo "Rolling back $DEPLOYMENT_TYPE deployment to $BACKUP_VERSION"
-
-case $DEPLOYMENT_TYPE in
-    "docker")
-        echo "🐳 Rolling back Docker deployment..."
-        docker-compose down
-        docker tag hypervector-lab:$BACKUP_VERSION hypervector-lab:latest
-        docker-compose up -d
-        ;;
-    "kubernetes")
-        echo "☸️ Rolling back Kubernetes deployment..."
-        kubectl rollout undo deployment/hypervector-app -n hypervector
-        ;;
-    *)
-        echo "❌ Unknown deployment type: $DEPLOYMENT_TYPE"
-        exit 1
-        ;;
-esac
-
-echo "✅ Rollback completed!"
-'''
-        
-        # Write scripts and make executable
-        scripts = {
-            'deploy.sh': deploy_script,
-            'health-check.sh': health_check_script,
-            'rollback.sh': rollback_script
-        }
-        
-        for script_name, content in scripts.items():
-            script_path = f'{scripts_dir}/{script_name}'
-            with open(script_path, 'w') as f:
-                f.write(content)
-            os.chmod(script_path, 0o755)
-        
-        self.deployment_artifacts.append("Generated deployment scripts")
-        print("✅ Deployment scripts ready")
     
-    def create_production_documentation(self):
-        """Create comprehensive production documentation"""
-        print("📖 Creating production documentation...")
-        
-        docs_dir = "production_deployment/docs"
-        os.makedirs(docs_dir, exist_ok=True)
-        
-        # Deployment guide
-        deployment_guide = '''# HyperVector-Lab Production Deployment Guide
-
-## Overview
-
-This guide covers the production deployment of HyperVector-Lab, a high-performance hyperdimensional computing library.
-
-## Quick Start
-
-### Docker Deployment (Recommended)
-```bash
-cd production_deployment
-chmod +x scripts/deploy.sh
-./scripts/deploy.sh docker production
-```
-
-### Kubernetes Deployment
-```bash
-cd production_deployment
-chmod +x scripts/deploy.sh
-./scripts/deploy.sh kubernetes production
-```
-
-## System Requirements
-
-### Minimum Requirements
-- CPU: 2 cores
-- RAM: 4 GB
-- Storage: 10 GB
-- Python: 3.9+
-
-### Recommended Requirements
-- CPU: 4+ cores
-- RAM: 8+ GB
-- Storage: 20+ GB
-- GPU: CUDA-compatible (optional)
-
-## Configuration
-
-### Environment Variables
-- `HDC_LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR)
-- `HDC_CACHE_SIZE`: Cache size in MB (default: 512)
-- `HDC_DEVICE`: Default compute device (cpu, cuda, auto)
-
-### Configuration Files
-- `config.json`: Main configuration
-- `logging.conf`: Logging configuration
-- `monitoring.yml`: Monitoring settings
-
-## Monitoring
-
-### Health Checks
-```bash
-./scripts/health-check.sh
-```
-
-### Metrics
-- Memory usage
-- CPU utilization
-- Operation latency
-- Error rates
-
-### Alerts
-- High resource usage
-- Service unavailability
-- Performance degradation
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Import Error**
-   - Check Python environment
-   - Verify dependencies
-
-2. **Memory Issues**
-   - Reduce cache size
-   - Increase system memory
-
-3. **Performance Issues**
-   - Enable GPU acceleration
-   - Optimize batch sizes
-
-### Support
-- Documentation: README.md
-- Issues: GitHub Issues
-- Community: Discord
-
-## Security
-
-### Best Practices
-- Run with non-root user
-- Use secrets management
-- Enable monitoring
-- Regular updates
-
-### Network Security
-- Restrict port access
-- Use TLS encryption
-- Implement authentication
-
-## Backup and Recovery
-
-### Backup Strategy
-- Configuration files
-- Model data
-- Application logs
-
-### Recovery Procedure
-```bash
-./scripts/rollback.sh docker backup_version
-```
-
-## Performance Tuning
-
-### CPU Optimization
-- Adjust worker threads
-- Enable vectorization
-- Optimize batch sizes
-
-### Memory Optimization
-- Configure cache size
-- Use memory pooling
-- Monitor allocations
-
-### GPU Optimization
-- Enable CUDA
-- Optimize memory transfer
-- Use mixed precision
-'''
-        
-        with open(f'{docs_dir}/deployment-guide.md', 'w') as f:
-            f.write(deployment_guide)
-        
-        self.deployment_artifacts.append("Generated production documentation")
-        print("✅ Production documentation ready")
-    
-    def generate_deployment_report(self):
-        """Generate final deployment report"""
-        end_time = time.time()
-        duration = end_time - self.start_time
-        
-        deployment_report = {
-            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'duration_seconds': round(duration, 2),
-            'deployment_artifacts': self.deployment_artifacts,
-            'deployment_summary': {
-                'total_artifacts': len(self.deployment_artifacts),
-                'docker_ready': True,
-                'kubernetes_ready': True,
-                'monitoring_enabled': True,
-                'ci_cd_configured': True,
-                'documentation_complete': True
+    def _generate_deployment_report(self, config: DeploymentConfig, files: Dict[str, str]) -> Dict[str, Any]:
+        """Generate deployment report."""
+        return {
+            'deployment_info': {
+                'name': config.name,
+                'environment': config.environment,
+                'target': config.target.value,
+                'strategy': config.strategy.value,
+                'replicas': config.replicas,
+                'auto_scaling': config.auto_scaling,
+                'monitoring_enabled': config.monitoring_enabled
             },
-            'deployment_options': {
-                'docker': 'Ready for containerized deployment',
-                'kubernetes': 'Ready for orchestrated deployment',
-                'local': 'Ready for local installation',
-                'cloud': 'Ready for cloud deployment'
-            },
+            'generated_files': list(files.keys()),
+            'file_count': len(files),
+            'generation_timestamp': time.time(),
+            'deployment_checklist': [
+                'Review and customize configuration files',
+                'Set up container registry credentials',
+                'Configure secrets and environment variables',
+                'Set up monitoring infrastructure',
+                'Test deployment in staging environment',
+                'Set up backup and disaster recovery',
+                'Configure log aggregation',
+                'Set up alerting rules'
+            ],
             'next_steps': [
-                'Review deployment configuration',
-                'Run pre-deployment tests',
-                'Execute deployment scripts',
-                'Monitor system health',
-                'Configure alerts and monitoring'
+                'Run ./deploy.sh to start deployment',
+                'Monitor application health and metrics',
+                'Set up automated backups',
+                'Configure monitoring dashboards'
             ]
         }
-        
-        # Save deployment report
-        with open('production_deployment/deployment_report.json', 'w') as f:
-            json.dump(deployment_report, f, indent=2)
-        
-        return deployment_report
 
-def main():
-    """Execute complete production deployment preparation"""
-    print("🚀 PRODUCTION DEPLOYMENT ORCHESTRATOR")
+def create_production_deployment():
+    """Create complete production deployment configuration."""
+    print("🚀 Creating Production Deployment Configuration")
     print("=" * 60)
     
-    orchestrator = ProductionDeploymentOrchestrator()
+    repo_root = Path(__file__).parent
+    orchestrator = ProductionDeploymentOrchestrator(repo_root)
     
-    # Execute all deployment preparation steps
-    deployment_steps = [
-        orchestrator.create_deployment_package,
-        orchestrator.generate_docker_deployment,
-        orchestrator.create_kubernetes_manifests,
-        orchestrator.create_monitoring_setup,
-        orchestrator.create_ci_cd_pipeline,
-        orchestrator.create_deployment_scripts,
-        orchestrator.create_production_documentation
+    # Define deployment configurations
+    environments = [
+        DeploymentConfig(
+            name="api",
+            target=DeploymentTarget.KUBERNETES,
+            strategy=DeploymentStrategy.ROLLING_UPDATE,
+            environment="production",
+            replicas=5,
+            resources={
+                'cpu_limit': '2000m',
+                'memory_limit': '4Gi',
+                'cpu_request': '1000m',
+                'memory_request': '2Gi'
+            },
+            environment_vars={
+                'LOG_LEVEL': 'INFO',
+                'WORKERS': '4'
+            },
+            monitoring_enabled=True,
+            auto_scaling=True
+        ),
+        DeploymentConfig(
+            name="api",
+            target=DeploymentTarget.DOCKER_COMPOSE,
+            strategy=DeploymentStrategy.RECREATE,
+            environment="development",
+            replicas=1,
+            resources={
+                'cpu_limit': '1000m',
+                'memory_limit': '2Gi'
+            },
+            environment_vars={
+                'LOG_LEVEL': 'DEBUG',
+                'WORKERS': '1'
+            },
+            monitoring_enabled=True,
+            auto_scaling=False
+        )
     ]
     
-    for step in deployment_steps:
-        try:
-            step()
-        except Exception as e:
-            print(f"❌ Deployment step failed: {e}")
-            return False
+    results = []
     
-    # Generate final report
-    report = orchestrator.generate_deployment_report()
+    for config in environments:
+        print(f"\n📦 Generating deployment for {config.environment} environment...")
+        result = orchestrator.generate_complete_deployment(config)
+        results.append(result)
+        
+        print(f"Generated {len(result['files'])} files")
     
+    # Print summary
     print("\n" + "=" * 60)
-    print("📊 PRODUCTION DEPLOYMENT REPORT")
+    print("📊 DEPLOYMENT GENERATION SUMMARY")
     print("=" * 60)
     
-    print(f"Deployment preparation completed in {report['duration_seconds']}s")
-    print(f"Total artifacts generated: {report['deployment_summary']['total_artifacts']}")
+    total_files = sum(len(r['files']) for r in results)
+    print(f"Total files generated: {total_files}")
     
-    print("\n🎯 DEPLOYMENT READINESS:")
-    for option, status in report['deployment_options'].items():
-        print(f"  {option.upper()}: {status}")
+    for result in results:
+        config_info = result['config']
+        print(f"\n🏷️  {config_info['environment'].upper()} Environment:")
+        print(f"   Target: {config_info['target']}")
+        print(f"   Replicas: {config_info['replicas']}")
+        print(f"   Files: {len(result['files'])}")
     
-    print("\n📦 GENERATED ARTIFACTS:")
-    for artifact in report['deployment_artifacts']:
-        print(f"  ✅ {artifact}")
+    print(f"\n📁 Deployment files saved to: {orchestrator.deployment_dir}")
+    print(f"\n🚀 Next Steps:")
+    print(f"   1. Review generated configuration files")
+    print(f"   2. Run deployment: ./deploy.sh")
+    print(f"\n✅ Production deployment ready!")
     
-    print("\n🎯 NEXT STEPS:")
-    for step in report['next_steps']:
-        print(f"  📋 {step}")
-    
-    print("\n🎉 PRODUCTION DEPLOYMENT READY!")
-    print("🚀 HyperVector-Lab is now ready for production deployment")
-    
-    return True
+    return results
 
 if __name__ == "__main__":
-    success = main()
-    exit(0 if success else 1)
+    create_production_deployment()

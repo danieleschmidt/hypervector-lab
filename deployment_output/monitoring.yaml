@@ -1,11 +1,18 @@
-alerts:
-  cpu_threshold: 80%
-  error_rate_threshold: 5%
-  memory_threshold: 80%
-grafana:
-  enabled: true
-  port: 3000
-prometheus:
-  enabled: true
-  metrics_path: /metrics
-  port: 9090
+# Monitoring configuration for HyperVector-Lab
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    scrape_configs:
+      - job_name: 'hypervector-api'
+        static_configs:
+          - targets: ['hypervector-api:8000']
+        metrics_path: '/metrics'
+        scrape_interval: 15s
+        scrape_timeout: 10s

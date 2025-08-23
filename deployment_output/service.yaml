@@ -1,17 +1,22 @@
 apiVersion: v1
 kind: Service
 metadata:
+  name: hypervector-api
   labels:
-    app: hypervector-app
-  name: hypervector-app-service
+    app: hypervector
+    component: api
+    environment: production
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
 spec:
+  type: ClusterIP
   ports:
-  - port: 8000
+  - port: 80
+    targetPort: http
     protocol: TCP
-    targetPort: 8000
-  - port: 8080
-    protocol: TCP
-    targetPort: 8080
+    name: http
   selector:
-    app: hypervector-app
-  type: LoadBalancer
+    app: hypervector
+    component: api
