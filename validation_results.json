@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "total_checks": 218,
+    "passes": 217,
+    "warnings": 1,
+    "failures": 0,
+    "skips": 0,
+    "score": 99.54128440366972,
+    "overall_status": "excellent"
+  },
+  "timestamp": 1755959901.592053,
+  "detailed_count": 218
+}

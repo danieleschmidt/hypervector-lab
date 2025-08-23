@@ -1,10 +1,23 @@
 apiVersion: v1
-data:
-  cache_size: '1000'
-  log_level: INFO
-  max_memory_gb: '2'
 kind: ConfigMap
 metadata:
+  name: hypervector-config
   labels:
-    app: hypervector-app
-  name: hypervector-app-config
+    app: hypervector
+    environment: production
+data:
+  # Application configuration
+  LOG_LEVEL: "INFO"
+  METRICS_ENABLED: "true"
+  HEALTH_CHECK_PATH: "/health"
+  AUTO_SCALING_ENABLED: "true"
+  MONITORING_ENABLED: "true"
+  
+  # Performance tuning
+  WORKERS: "4"
+  WORKER_CONNECTIONS: "1000"
+  
+  # Hypervector specific
+  DEFAULT_DIMENSION: "10000"
+  CACHE_SIZE_MB: "1024"
+  BATCH_SIZE: "100"

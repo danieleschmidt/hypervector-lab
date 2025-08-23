@@ -1,0 +1,36 @@
+{
+  "deployment_info": {
+    "name": "api",
+    "environment": "development",
+    "target": "docker_compose",
+    "strategy": "recreate",
+    "replicas": 1,
+    "auto_scaling": false,
+    "monitoring_enabled": true
+  },
+  "generated_files": [
+    "Dockerfile",
+    "requirements.txt",
+    "docker-compose.yml",
+    "monitoring.yaml",
+    "deploy.sh"
+  ],
+  "file_count": 5,
+  "generation_timestamp": 1755960272.9117842,
+  "deployment_checklist": [
+    "Review and customize configuration files",
+    "Set up container registry credentials",
+    "Configure secrets and environment variables",
+    "Set up monitoring infrastructure",
+    "Test deployment in staging environment",
+    "Set up backup and disaster recovery",
+    "Configure log aggregation",
+    "Set up alerting rules"
+  ],
+  "next_steps": [
+    "Run ./deploy.sh to start deployment",
+    "Monitor application health and metrics",
+    "Set up automated backups",
+    "Configure monitoring dashboards"
+  ]
+}

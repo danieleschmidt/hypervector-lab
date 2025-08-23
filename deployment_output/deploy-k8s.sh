@@ -1,19 +1,24 @@
 #!/bin/bash
-set -e
 
-echo "🚀 Starting Kubernetes deployment..."
+# Kubernetes Deployment Script for HyperVector-Lab
 
-# Apply ConfigMap
-echo "⚙️  Applying ConfigMap..."
+set -euo pipefail
+
+APP_NAME="hypervector-api"
+
+echo "☸️  Deploying to Kubernetes..."
+
+# Apply manifests
 kubectl apply -f configmap.yaml
-
-# Apply Deployment
-echo "🚀 Applying Deployment..."
 kubectl apply -f deployment.yaml
-
-# Apply Service
-echo "🌐 Applying Service..."
 kubectl apply -f service.yaml
 
-echo "✅ Kubernetes deployment completed!"
-echo "📊 Check status with: kubectl get pods,services"
+# Wait for deployment
+echo "⏳ Waiting for deployment to complete..."
+kubectl wait --for=condition=available --timeout=600s deployment/$APP_NAME
+
+echo "✅ Deployment completed successfully!"
+
+# Show status
+kubectl get pods -l app=hypervector
+kubectl get svc -l app=hypervector
