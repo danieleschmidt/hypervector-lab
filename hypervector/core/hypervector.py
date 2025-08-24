@@ -120,6 +120,66 @@ class HyperVector:
         self.dim = data.shape[-1]
         
         logger.debug(f"Created HyperVector: dim={self.dim}, mode={self.mode}, device={self.data.device}")
+    
+    @property
+    def vector(self) -> torch.Tensor:
+        """Access underlying tensor data."""
+        return self.data
+    
+    def __add__(self, other: "HyperVector") -> "HyperVector":
+        """Element-wise addition."""
+        if not isinstance(other, HyperVector):
+            raise TypeError("Can only add HyperVector to HyperVector")
+        if self.dim != other.dim:
+            raise ValueError(f"Dimension mismatch: {self.dim} vs {other.dim}")
+        return HyperVector(self.data + other.data, mode=self.mode)
+    
+    def __mul__(self, other: "HyperVector") -> "HyperVector":
+        """Element-wise multiplication (binding)."""
+        if not isinstance(other, HyperVector):
+            raise TypeError("Can only multiply HyperVector by HyperVector")
+        if self.dim != other.dim:
+            raise ValueError(f"Dimension mismatch: {self.dim} vs {other.dim}")
+        return HyperVector(self.data * other.data, mode=self.mode)
+    
+    def __repr__(self) -> str:
+        """String representation."""
+        return f"HyperVector(dim={self.dim}, mode={self.mode}, device={self.data.device})"
+    
+    def cosine_similarity(self, other: "HyperVector") -> torch.Tensor:
+        """Compute cosine similarity with another hypervector."""
+        if not isinstance(other, HyperVector):
+            raise TypeError("Can only compute similarity with HyperVector")
+        if self.dim != other.dim:
+            raise ValueError(f"Dimension mismatch: {self.dim} vs {other.dim}")
+        
+        # Compute cosine similarity
+        dot_product = torch.dot(self.data, other.data)
+        norm_self = torch.norm(self.data)
+        norm_other = torch.norm(other.data)
+        
+        if norm_self == 0 or norm_other == 0:
+            return torch.tensor(0.0)
+        
+        return dot_product / (norm_self * norm_other)
+    
+    def hamming_distance(self, other: "HyperVector") -> torch.Tensor:
+        """Compute Hamming distance with another hypervector."""
+        if not isinstance(other, HyperVector):
+            raise TypeError("Can only compute distance with HyperVector")
+        if self.dim != other.dim:
+            raise ValueError(f"Dimension mismatch: {self.dim} vs {other.dim}")
+        
+        # For binary vectors, count differences
+        if self.mode == "binary" and other.mode == "binary":
+            differences = torch.sum(self.data != other.data)
+            return differences.float()
+        
+        # For other modes, threshold and count
+        self_binary = (self.data > 0).float()
+        other_binary = (other.data > 0).float()
+        differences = torch.sum(self_binary != other_binary)
+        return differences.float()
         
     @classmethod
     def random(
