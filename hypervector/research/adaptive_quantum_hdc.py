@@ -18,7 +18,7 @@ and 60% faster convergence for complex pattern recognition tasks.
 import torch
 import torch.nn as nn
 import numpy as np
-from typing import Optional, List, Dict, Tuple, Union
+from typing import Optional, List, Dict, Tuple, Union, Any
 import math
 from dataclasses import dataclass
 from ..core.hypervector import HyperVector
