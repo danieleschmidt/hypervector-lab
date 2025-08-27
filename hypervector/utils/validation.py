@@ -316,3 +316,49 @@ def validate_tensor_input(data, name="tensor"):
         raise ValueError(f"{name} cannot be None")
     if hasattr(data, 'shape') and len(data.shape) == 0:
         raise ValueError(f"{name} cannot be scalar")
+
+
+def validate_dimension(dim):
+    """Validate hypervector dimension parameter"""
+    if not isinstance(dim, int):
+        raise TypeError(f"Dimension must be integer, got {type(dim)}")
+    if dim <= 0:
+        raise ValueError(f"Dimension must be positive, got {dim}")
+    if dim > 100000:
+        logging.warning(f"Large dimension {dim} may cause performance issues")
+
+def validate_device(device):
+    """Validate device parameter"""
+    valid_devices = ['cpu', 'cuda', 'auto']
+    if device not in valid_devices and not device.startswith('cuda:'):
+        raise ValueError(f"Invalid device {device}. Must be one of {valid_devices} or 'cuda:N'")
+
+def validate_tensor_input(data, name="tensor"):
+    """Validate tensor input data"""
+    if data is None:
+        raise ValueError(f"{name} cannot be None")
+    if hasattr(data, 'shape') and len(data.shape) == 0:
+        raise ValueError(f"{name} cannot be scalar")
+
+
+def validate_dimension(dim):
+    """Validate hypervector dimension parameter"""
+    if not isinstance(dim, int):
+        raise TypeError(f"Dimension must be integer, got {type(dim)}")
+    if dim <= 0:
+        raise ValueError(f"Dimension must be positive, got {dim}")
+    if dim > 100000:
+        logging.warning(f"Large dimension {dim} may cause performance issues")
+
+def validate_device(device):
+    """Validate device parameter"""
+    valid_devices = ['cpu', 'cuda', 'auto']
+    if device not in valid_devices and not device.startswith('cuda:'):
+        raise ValueError(f"Invalid device {device}. Must be one of {valid_devices} or 'cuda:N'")
+
+def validate_tensor_input(data, name="tensor"):
+    """Validate tensor input data"""
+    if data is None:
+        raise ValueError(f"{name} cannot be None")
+    if hasattr(data, 'shape') and len(data.shape) == 0:
+        raise ValueError(f"{name} cannot be scalar")

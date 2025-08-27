@@ -365,3 +365,63 @@ def log_memory_usage():
         logging.info(f"Memory usage: {memory_mb:.2f} MB")
     except ImportError:
         logging.warning("psutil not available for memory monitoring")
+
+
+import time
+from functools import wraps
+
+def monitor_performance(func):
+    """Decorator to monitor function performance"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        try:
+            result = func(*args, **kwargs)
+            duration = time.time() - start_time
+            logging.info(f"{func.__name__} completed in {duration:.4f}s")
+            return result
+        except Exception as e:
+            duration = time.time() - start_time
+            logging.error(f"{func.__name__} failed after {duration:.4f}s: {e}")
+            raise
+    return wrapper
+
+def log_memory_usage():
+    """Log current memory usage"""
+    try:
+        import psutil
+        process = psutil.Process()
+        memory_mb = process.memory_info().rss / 1024 / 1024
+        logging.info(f"Memory usage: {memory_mb:.2f} MB")
+    except ImportError:
+        logging.warning("psutil not available for memory monitoring")
+
+
+import time
+from functools import wraps
+
+def monitor_performance(func):
+    """Decorator to monitor function performance"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        try:
+            result = func(*args, **kwargs)
+            duration = time.time() - start_time
+            logging.info(f"{func.__name__} completed in {duration:.4f}s")
+            return result
+        except Exception as e:
+            duration = time.time() - start_time
+            logging.error(f"{func.__name__} failed after {duration:.4f}s: {e}")
+            raise
+    return wrapper
+
+def log_memory_usage():
+    """Log current memory usage"""
+    try:
+        import psutil
+        process = psutil.Process()
+        memory_mb = process.memory_info().rss / 1024 / 1024
+        logging.info(f"Memory usage: {memory_mb:.2f} MB")
+    except ImportError:
+        logging.warning("psutil not available for memory monitoring")

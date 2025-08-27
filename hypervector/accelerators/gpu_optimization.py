@@ -502,3 +502,151 @@ def get_gpu_accelerator(device: Optional[str] = None) -> GPUAccelerator:
     if _gpu_accelerator is None or (device and _gpu_accelerator.device != device):
         _gpu_accelerator = GPUAccelerator(device)
     return _gpu_accelerator
+
+
+import torch
+import torch.nn as nn
+from typing import Optional, List
+import warnings
+
+class GPUAccelerator:
+    """GPU acceleration for HDC operations"""
+    
+    def __init__(self, device: Optional[str] = None):
+        self.device = device or self._get_best_device()
+        self.stream = torch.cuda.Stream() if self.device.startswith('cuda') else None
+        self._init_optimizations()
+    
+    def _get_best_device(self) -> str:
+        """Automatically select the best available device"""
+        if torch.cuda.is_available():
+            # Select GPU with most free memory
+            best_gpu = 0
+            max_memory = 0
+            
+            for i in range(torch.cuda.device_count()):
+                torch.cuda.set_device(i)
+                free_memory = torch.cuda.get_device_properties(i).total_memory - torch.cuda.memory_allocated(i)
+                if free_memory > max_memory:
+                    max_memory = free_memory
+                    best_gpu = i
+            
+            return f'cuda:{best_gpu}'
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            return 'mps'
+        else:
+            return 'cpu'
+    
+    def _init_optimizations(self):
+        """Initialize GPU-specific optimizations"""
+        if self.device.startswith('cuda'):
+            # Enable TensorFloat-32 for faster computation on Ampere GPUs
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            
+            # Optimize for inference
+            torch.backends.cudnn.benchmark = True
+    
+    def batch_similarity_gpu(self, query_hvs: List, memory_hvs: List) -> torch.Tensor:
+        """GPU-optimized batch similarity computation"""
+        if not query_hvs or not memory_hvs:
+            return torch.empty(0, device=self.device)
+        
+        # Move to GPU and stack
+        query_batch = torch.stack([hv.data.to(self.device) for hv in query_hvs])
+        memory_batch = torch.stack([hv.data.to(self.device) for hv in memory_hvs])
+        
+        # Use GPU-optimized matrix multiplication
+        with torch.cuda.device(self.device) if self.device.startswith('cuda') else torch.no_grad():
+            # Normalize vectors for cosine similarity
+            query_norm = torch.nn.functional.normalize(query_batch, dim=1)
+            memory_norm = torch.nn.functional.normalize(memory_batch, dim=1)
+            
+            # Compute similarities using matrix multiplication
+            similarities = torch.mm(query_norm, memory_norm.t())
+            
+        return similarities
+    
+    def optimized_convolution_encoding(self, input_tensor: torch.Tensor, kernel_size: int = 3):
+        """GPU-optimized convolution for pattern encoding"""
+        if input_tensor.dim() < 3:
+            input_tensor = input_tensor.unsqueeze(0).unsqueeze(0)
+        
+        conv_layer = nn.Conv1d(
+            in_channels=input_tensor.size(1),
+            out_channels=64,
+            kernel_size=kernel_size,
+            padding=kernel_size//2
+        ).to(self.device)
+        
+        return conv_layer(input_tensor.to(self.device))
+    
+    def parallel_binding(self, hv_pairs: List[tuple]) -> List:
+        """Parallel binding operations on GPU"""
+        if not hv_pairs:
+            return []
+        
+        # Process in parallel streams if available
+        results = []
+        
+        for hv1, hv2 in hv_pairs:
+            if self.stream:
+                with torch.cuda.stream(self.stream):
+                    result = hv1.data.to(self.device) * hv2.data.to(self.device)
+            else:
+                result = hv1.data.to(self.device) * hv2.data.to(self.device)
+            
+            results.append(HyperVector(result, mode=hv1.mode))
+        
+        if self.stream:
+            self.stream.synchronize()
+        
+        return results
+    
+    def memory_efficient_bundle(self, hvs: List, chunk_size: int = 1000):
+        """Memory-efficient bundling for large collections"""
+        if not hvs:
+            raise ValueError("Cannot bundle empty list")
+        
+        device = self.device
+        dim = hvs[0].dim
+        result = torch.zeros(dim, device=device, dtype=torch.float32)
+        
+        # Process in chunks to avoid OOM
+        for i in range(0, len(hvs), chunk_size):
+            chunk = hvs[i:i + chunk_size]
+            chunk_data = torch.stack([hv.data.to(device) for hv in chunk])
+            
+            # Use GPU reduction
+            chunk_sum = torch.sum(chunk_data, dim=0)
+            result += chunk_sum
+            
+            # Clear GPU memory
+            del chunk_data, chunk_sum
+            if device.startswith('cuda'):
+                torch.cuda.empty_cache()
+        
+        # Normalize
+        result = torch.nn.functional.normalize(result, dim=-1)
+        return HyperVector(result)
+    
+    def get_memory_info(self) -> dict:
+        """Get GPU memory information"""
+        if self.device.startswith('cuda'):
+            return {
+                'allocated': torch.cuda.memory_allocated(self.device),
+                'cached': torch.cuda.memory_reserved(self.device),
+                'device_name': torch.cuda.get_device_name(self.device)
+            }
+        else:
+            return {'device': self.device, 'type': 'cpu_or_mps'}
+
+# Global GPU accelerator
+_gpu_accelerator = None
+
+def get_gpu_accelerator(device: Optional[str] = None) -> GPUAccelerator:
+    """Get global GPU accelerator instance"""
+    global _gpu_accelerator
+    if _gpu_accelerator is None or (device and _gpu_accelerator.device != device):
+        _gpu_accelerator = GPUAccelerator(device)
+    return _gpu_accelerator

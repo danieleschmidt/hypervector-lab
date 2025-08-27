@@ -565,3 +565,187 @@ def get_auto_scaler(**kwargs) -> AutoScaler:
     if _auto_scaler is None:
         _auto_scaler = AutoScaler(**kwargs)
     return _auto_scaler
+
+
+import time
+import threading
+import queue
+from typing import List, Callable, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+import multiprocessing as mp
+import psutil
+
+class AutoScaler:
+    """Auto-scaling system for HDC operations"""
+    
+    def __init__(self, min_workers: int = 2, max_workers: int = None, target_cpu_percent: float = 75.0):
+        self.min_workers = min_workers
+        self.max_workers = max_workers or mp.cpu_count()
+        self.target_cpu_percent = target_cpu_percent
+        self.current_workers = min_workers
+        
+        self.thread_pool = ThreadPoolExecutor(max_workers=self.current_workers)
+        self.process_pool = ProcessPoolExecutor(max_workers=self.current_workers)
+        
+        self.task_queue = queue.Queue()
+        self.metrics = {
+            'completed_tasks': 0,
+            'failed_tasks': 0,
+            'avg_task_time': 0.0,
+            'queue_size': 0
+        }
+        
+        self.monitor_thread = threading.Thread(target=self._monitor_performance, daemon=True)
+        self.monitor_thread.start()
+    
+    def _monitor_performance(self):
+        """Monitor system performance and adjust scaling"""
+        while True:
+            try:
+                cpu_percent = psutil.cpu_percent(interval=1)
+                memory_percent = psutil.virtual_memory().percent
+                queue_size = self.task_queue.qsize()
+                
+                # Scale up conditions
+                if (cpu_percent > self.target_cpu_percent and 
+                    queue_size > self.current_workers and 
+                    self.current_workers < self.max_workers):
+                    self._scale_up()
+                
+                # Scale down conditions
+                elif (cpu_percent < self.target_cpu_percent * 0.5 and 
+                      queue_size < self.current_workers // 2 and 
+                      self.current_workers > self.min_workers):
+                    self._scale_down()
+                
+                self.metrics['queue_size'] = queue_size
+                
+                time.sleep(5)  # Check every 5 seconds
+                
+            except Exception as e:
+                print(f"Monitoring error: {e}")
+                time.sleep(10)
+    
+    def _scale_up(self):
+        """Increase worker count"""
+        new_workers = min(self.current_workers + 2, self.max_workers)
+        if new_workers > self.current_workers:
+            self.current_workers = new_workers
+            self._restart_pools()
+            print(f"Scaled up to {self.current_workers} workers")
+    
+    def _scale_down(self):
+        """Decrease worker count"""
+        new_workers = max(self.current_workers - 1, self.min_workers)
+        if new_workers < self.current_workers:
+            self.current_workers = new_workers
+            self._restart_pools()
+            print(f"Scaled down to {self.current_workers} workers")
+    
+    def _restart_pools(self):
+        """Restart thread and process pools with new worker count"""
+        # Shutdown old pools
+        self.thread_pool.shutdown(wait=False)
+        self.process_pool.shutdown(wait=False)
+        
+        # Create new pools
+        self.thread_pool = ThreadPoolExecutor(max_workers=self.current_workers)
+        self.process_pool = ProcessPoolExecutor(max_workers=self.current_workers)
+    
+    def submit_io_task(self, func: Callable, *args, **kwargs):
+        """Submit I/O bound task to thread pool"""
+        start_time = time.time()
+        future = self.thread_pool.submit(func, *args, **kwargs)
+        
+        def on_complete(fut):
+            duration = time.time() - start_time
+            try:
+                result = fut.result()
+                self.metrics['completed_tasks'] += 1
+                self._update_avg_time(duration)
+            except Exception as e:
+                self.metrics['failed_tasks'] += 1
+                print(f"Task failed: {e}")
+        
+        future.add_done_callback(on_complete)
+        return future
+    
+    def submit_cpu_task(self, func: Callable, *args, **kwargs):
+        """Submit CPU bound task to process pool"""
+        start_time = time.time()
+        future = self.process_pool.submit(func, *args, **kwargs)
+        
+        def on_complete(fut):
+            duration = time.time() - start_time
+            try:
+                result = fut.result()
+                self.metrics['completed_tasks'] += 1
+                self._update_avg_time(duration)
+            except Exception as e:
+                self.metrics['failed_tasks'] += 1
+                print(f"Task failed: {e}")
+        
+        future.add_done_callback(on_complete)
+        return future
+    
+    def _update_avg_time(self, new_time: float):
+        """Update average task time"""
+        total_tasks = self.metrics['completed_tasks']
+        if total_tasks == 1:
+            self.metrics['avg_task_time'] = new_time
+        else:
+            # Moving average
+            alpha = 0.1  # Smoothing factor
+            self.metrics['avg_task_time'] = (
+                alpha * new_time + 
+                (1 - alpha) * self.metrics['avg_task_time']
+            )
+    
+    def get_metrics(self) -> dict:
+        """Get current performance metrics"""
+        return self.metrics.copy()
+    
+    def shutdown(self):
+        """Shutdown all pools"""
+        self.thread_pool.shutdown(wait=True)
+        self.process_pool.shutdown(wait=True)
+
+class LoadBalancer:
+    """Load balancer for distributing HDC operations"""
+    
+    def __init__(self, workers: List[Any]):
+        self.workers = workers
+        self.current_index = 0
+        self.worker_loads = [0] * len(workers)
+        self.lock = threading.Lock()
+    
+    def get_least_loaded_worker(self):
+        """Get worker with least current load"""
+        with self.lock:
+            min_load_index = min(range(len(self.worker_loads)), key=lambda i: self.worker_loads[i])
+            self.worker_loads[min_load_index] += 1
+            return self.workers[min_load_index], min_load_index
+    
+    def release_worker(self, worker_index: int):
+        """Release worker after task completion"""
+        with self.lock:
+            if 0 <= worker_index < len(self.worker_loads):
+                self.worker_loads[worker_index] = max(0, self.worker_loads[worker_index] - 1)
+    
+    def get_round_robin_worker(self):
+        """Get next worker in round-robin fashion"""
+        with self.lock:
+            worker = self.workers[self.current_index]
+            worker_index = self.current_index
+            self.current_index = (self.current_index + 1) % len(self.workers)
+            return worker, worker_index
+
+# Global auto-scaler
+_auto_scaler = None
+
+def get_auto_scaler(**kwargs) -> AutoScaler:
+    """Get global auto-scaler instance"""
+    global _auto_scaler
+    if _auto_scaler is None:
+        _auto_scaler = AutoScaler(**kwargs)
+    return _auto_scaler

@@ -352,3 +352,95 @@ class ConfigManager:
         for key in required_keys:
             if key not in self.config:
                 raise ValueError(f"Missing required config key: {key}")
+
+
+import json
+import os
+from typing import Dict, Any
+
+class ConfigManager:
+    """Robust configuration management"""
+    
+    def __init__(self, config_path: str = None):
+        self.config_path = config_path or os.getenv('HDC_CONFIG_PATH', 'config.json')
+        self.config = self.load_config()
+    
+    def load_config(self) -> Dict[str, Any]:
+        """Load configuration with error handling"""
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r') as f:
+                    return json.load(f)
+            else:
+                logging.info(f"Config file {self.config_path} not found, using defaults")
+                return self.get_default_config()
+        except Exception as e:
+            logging.error(f"Failed to load config: {e}")
+            return self.get_default_config()
+    
+    def get_default_config(self) -> Dict[str, Any]:
+        """Get default configuration"""
+        return {
+            'default_dim': 10000,
+            'default_device': 'auto',
+            'logging_level': 'INFO',
+            'performance_monitoring': True,
+            'memory_limit_mb': 1024
+        }
+    
+    def get(self, key: str, default=None):
+        """Get configuration value with fallback"""
+        return self.config.get(key, default)
+    
+    def validate_config(self):
+        """Validate configuration parameters"""
+        required_keys = ['default_dim', 'default_device']
+        for key in required_keys:
+            if key not in self.config:
+                raise ValueError(f"Missing required config key: {key}")
+
+
+import json
+import os
+from typing import Dict, Any
+
+class ConfigManager:
+    """Robust configuration management"""
+    
+    def __init__(self, config_path: str = None):
+        self.config_path = config_path or os.getenv('HDC_CONFIG_PATH', 'config.json')
+        self.config = self.load_config()
+    
+    def load_config(self) -> Dict[str, Any]:
+        """Load configuration with error handling"""
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r') as f:
+                    return json.load(f)
+            else:
+                logging.info(f"Config file {self.config_path} not found, using defaults")
+                return self.get_default_config()
+        except Exception as e:
+            logging.error(f"Failed to load config: {e}")
+            return self.get_default_config()
+    
+    def get_default_config(self) -> Dict[str, Any]:
+        """Get default configuration"""
+        return {
+            'default_dim': 10000,
+            'default_device': 'auto',
+            'logging_level': 'INFO',
+            'performance_monitoring': True,
+            'memory_limit_mb': 1024
+        }
+    
+    def get(self, key: str, default=None):
+        """Get configuration value with fallback"""
+        return self.config.get(key, default)
+    
+    def validate_config(self):
+        """Validate configuration parameters"""
+        required_keys = ['default_dim', 'default_device']
+        for key in required_keys:
+            if key not in self.config:
+                raise ValueError(f"Missing required config key: {key}")
