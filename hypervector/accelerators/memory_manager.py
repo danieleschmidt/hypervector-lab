@@ -662,3 +662,192 @@ def optimize_tensor_allocation(func):
             gc.collect()
     
     return wrapper
+
+
+import torch
+import gc
+import threading
+from typing import Dict, List, Optional, Tuple
+import weakref
+import time
+
+class MemoryPool:
+    """Memory pool for efficient tensor allocation and reuse"""
+    
+    def __init__(self, device: str = 'cpu', max_pool_size_mb: int = 256):
+        self.device = device
+        self.max_pool_size = max_pool_size_mb * 1024 * 1024
+        self.current_size = 0
+        
+        # Pools organized by shape and dtype
+        self.pools: Dict[Tuple, List[torch.Tensor]] = {}
+        self.pool_lock = threading.Lock()
+        
+        # Track allocation statistics
+        self.stats = {
+            'allocations': 0,
+            'pool_hits': 0,
+            'pool_misses': 0,
+            'memory_reused_mb': 0
+        }
+    
+    def allocate(self, shape: Tuple[int, ...], dtype: torch.dtype = torch.float32) -> torch.Tensor:
+        """Allocate tensor from pool or create new"""
+        key = (shape, dtype)
+        
+        with self.pool_lock:
+            if key in self.pools and self.pools[key]:
+                # Reuse from pool
+                tensor = self.pools[key].pop()
+                tensor.zero_()  # Clear data
+                self.stats['pool_hits'] += 1
+                self.stats['memory_reused_mb'] += tensor.numel() * tensor.element_size() / (1024 * 1024)
+                return tensor
+            else:
+                # Create new tensor
+                tensor = torch.zeros(shape, dtype=dtype, device=self.device)
+                self.stats['allocations'] += 1
+                self.stats['pool_misses'] += 1
+                return tensor
+    
+    def deallocate(self, tensor: torch.Tensor):
+        """Return tensor to pool for reuse"""
+        if tensor.device.type != self.device.split(':')[0]:
+            return  # Wrong device
+        
+        key = (tuple(tensor.shape), tensor.dtype)
+        tensor_size = tensor.numel() * tensor.element_size()
+        
+        with self.pool_lock:
+            # Check if we have space in pool
+            if self.current_size + tensor_size <= self.max_pool_size:
+                if key not in self.pools:
+                    self.pools[key] = []
+                
+                self.pools[key].append(tensor.detach())
+                self.current_size += tensor_size
+            # else: let tensor be garbage collected
+    
+    def clear_pool(self):
+        """Clear all pooled tensors"""
+        with self.pool_lock:
+            self.pools.clear()
+            self.current_size = 0
+            if self.device.startswith('cuda'):
+                torch.cuda.empty_cache()
+    
+    def get_stats(self) -> dict:
+        """Get memory pool statistics"""
+        hit_rate = (self.stats['pool_hits'] / 
+                   (self.stats['pool_hits'] + self.stats['pool_misses'])) if self.stats['pool_hits'] + self.stats['pool_misses'] > 0 else 0
+        
+        return {
+            'hit_rate': hit_rate,
+            'current_pool_size_mb': self.current_size / (1024 * 1024),
+            'total_allocations': self.stats['allocations'],
+            'memory_reused_mb': self.stats['memory_reused_mb']
+        }
+
+class MemoryMonitor:
+    """Monitor and optimize memory usage"""
+    
+    def __init__(self, warning_threshold_mb: int = 1024, critical_threshold_mb: int = 2048):
+        self.warning_threshold = warning_threshold_mb * 1024 * 1024
+        self.critical_threshold = critical_threshold_mb * 1024 * 1024
+        self.monitoring = False
+        self.monitor_thread = None
+    
+    def start_monitoring(self, interval: float = 30.0):
+        """Start memory monitoring"""
+        if self.monitoring:
+            return
+        
+        self.monitoring = True
+        self.monitor_thread = threading.Thread(
+            target=self._monitor_loop, 
+            args=(interval,), 
+            daemon=True
+        )
+        self.monitor_thread.start()
+    
+    def stop_monitoring(self):
+        """Stop memory monitoring"""
+        self.monitoring = False
+        if self.monitor_thread:
+            self.monitor_thread.join()
+    
+    def _monitor_loop(self, interval: float):
+        """Memory monitoring loop"""
+        while self.monitoring:
+            try:
+                memory_usage = self._get_memory_usage()
+                
+                if memory_usage > self.critical_threshold:
+                    print(f"CRITICAL: Memory usage {memory_usage / (1024**3):.2f} GB")
+                    self._emergency_cleanup()
+                elif memory_usage > self.warning_threshold:
+                    print(f"WARNING: Memory usage {memory_usage / (1024**3):.2f} GB")
+                    self._gentle_cleanup()
+                
+                time.sleep(interval)
+                
+            except Exception as e:
+                print(f"Memory monitoring error: {e}")
+                time.sleep(interval * 2)
+    
+    def _get_memory_usage(self) -> int:
+        """Get current memory usage in bytes"""
+        try:
+            import psutil
+            process = psutil.Process()
+            return process.memory_info().rss
+        except ImportError:
+            # Fallback to torch memory if available
+            if torch.cuda.is_available():
+                return torch.cuda.memory_allocated()
+            return 0
+    
+    def _gentle_cleanup(self):
+        """Perform gentle memory cleanup"""
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    
+    def _emergency_cleanup(self):
+        """Perform aggressive memory cleanup"""
+        # Clear all pools
+        for pool in _memory_pools.values():
+            pool.clear_pool()
+        
+        # Force garbage collection
+        gc.collect()
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+
+# Global memory pools for different devices
+_memory_pools: Dict[str, MemoryPool] = {}
+_memory_monitor = MemoryMonitor()
+
+def get_memory_pool(device: str = 'cpu') -> MemoryPool:
+    """Get memory pool for device"""
+    if device not in _memory_pools:
+        _memory_pools[device] = MemoryPool(device)
+    return _memory_pools[device]
+
+def optimize_tensor_allocation(func):
+    """Decorator to optimize tensor allocation in functions"""
+    def wrapper(*args, **kwargs):
+        # Start memory monitoring if not already started
+        if not _memory_monitor.monitoring:
+            _memory_monitor.start_monitoring()
+        
+        try:
+            result = func(*args, **kwargs)
+            return result
+        finally:
+            # Cleanup after function
+            gc.collect()
+    
+    return wrapper
